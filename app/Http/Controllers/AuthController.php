@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+
 
 class AuthController extends Controller
 {
@@ -21,7 +24,7 @@ class AuthController extends Controller
         ]);
 
         // Cek apakah username ada di database
-        $user = \App\Models\User::where('username', $credentials['username'])->first();
+        $user = User::where('username', $credentials['username'])->first();
 
         if (!$user) {
             // Jika username tidak ditemukan
@@ -31,7 +34,7 @@ class AuthController extends Controller
         }
 
         // Cek apakah password benar
-        if (!\Hash::check($credentials['password'], $user->password)) {
+        if (!Hash::check($credentials['password'], $user->password)) {
             // Jika password salah
             return back()->withErrors([
                 'password' => 'Password salah.',
