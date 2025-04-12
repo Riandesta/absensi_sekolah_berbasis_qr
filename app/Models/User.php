@@ -29,6 +29,6 @@ class User extends Authenticatable
     // Relasi dengan tabel kelas (untuk akun_kelas)
     public function kelas()
     {
-        return $this->hasOne(Kelas::class, 'akun_kelas_user_id', 'id');
+        return $this->belongsTo(Kelas::class, 'related_id'); // Gunakan belongsTo untuk relasi ke Kelas
     }
 }

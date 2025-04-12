@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('tingkat');
             $table->unsignedBigInteger('akun_kelas_user_id')->nullable();
             $table->foreign('jurusan_id')->references('id')->on('jurusan');
-            $table->foreign('akun_kelas_user_id')->references('id')->on('users');
+            $table->foreign('akun_kelas_user_id')->references('id')->on('users')->onDelete('cascade');
             $table->timestamps();
         });
     }

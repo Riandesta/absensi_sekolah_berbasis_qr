@@ -6,27 +6,31 @@ use Illuminate\Database\Eloquent\Model;
 
 class JadwalPelajaran extends Model
 {
-    protected $fillable = [
-        'karyawan_id', 'kelas_id', 'mata_pelajaran_id', 'hari', 'jam_mulai', 'jam_selesai', 'tahun_ajaran_id'
-    ];
+    protected $table = 'jadwal_pelajaran';
+    protected $guarded = ['id'];
 
-    public function karyawan()
+    // Relasi ke Guru (Karyawan)
+    public function guru()
     {
-        return $this->belongsTo(Karyawan::class);
+        return $this->belongsTo(Karyawan::class, 'karyawan_id');
     }
 
-    public function kelas()
-    {
-        return $this->belongsTo(Kelas::class);
-    }
 
+    // Relasi ke Mata Pelajaran
     public function mataPelajaran()
     {
-        return $this->belongsTo(MataPelajaran::class);
+        return $this->belongsTo(MataPelajaran::class, 'mata_pelajaran_id');
     }
 
+    // Relasi ke Tahun Ajaran
     public function tahunAjaran()
     {
-        return $this->belongsTo(TahunAjaran::class);
+        return $this->belongsTo(TahunAjaran::class, 'tahun_ajaran_id');
+    }
+
+    // Relasi ke Jadwal
+    public function jadwal()
+    {
+        return $this->hasMany(Jadwal::class, 'jadwal_pelajaran_id');
     }
 }

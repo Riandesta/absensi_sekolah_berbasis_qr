@@ -13,6 +13,8 @@ use App\Http\Controllers\KelasController;
 use App\Http\Controllers\MataPelajaranController;
 use App\Http\Controllers\JadwalPelajaranController;
 use App\Http\Controllers\AbsensiController;
+use App\Http\Controllers\TahunAjaranController;
+use App\Models\Jurusan;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +31,46 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Admin routes
 Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
+    Route::resource('/jurusan', JurusanController::class);
+    Route::resource('/tahun-ajaran', TahunAjaranController::class);
+    Route::resource('mata-pelajaran', MataPelajaranController::class);
+    Route::resource('jadwal', JadwalPelajaranController::class);
+
+    Route::prefix('jadwal-pelajaran')->name('jadwal-pelajaran.')->group(function () {
+        Route::get('/', [JadwalPelajaranController::class, 'index'])->name('index');
+        Route::get('/create', [JadwalPelajaranController::class, 'create'])->name('create');
+        Route::post('/', [JadwalPelajaranController::class, 'store'])->name('store');
+        Route::get('/edit/{jadwalPelajaran}', [JadwalPelajaranController::class, 'edit'])->name('edit');
+        Route::put('/{jadwalPelajaran}', [JadwalPelajaranController::class, 'update'])->name('update');
+        Route::delete('/{jadwalPelajaran}', [JadwalPelajaranController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::middleware('auth')->group(function () {
+        Route::resource('siswa', SiswaController::class);
+        Route::resource('karyawan', KaryawanController::class);
+    });
+
+    // ---------------------------------------------------- //
+
+    // Rute untuk menampilkan daftar kelas
+    Route::get('/kelas', [KelasController::class, 'index'])->name('kelas.index');
+
+    // Rute untuk menampilkan form tambah kelas
+    Route::get('/kelas/create', [KelasController::class, 'create'])->name('kelas.create');
+
+    // Rute untuk menyimpan kelas baru
+    Route::post('/kelas', [KelasController::class, 'store'])->name('kelas.store');
+
+    // Rute untuk menampilkan form edit kelas
+    Route::get('/kelas/{kelas}/edit', [KelasController::class, 'edit'])->name('kelas.edit');
+
+    // Rute untuk mengupdate data kelas
+    Route::put('/kelas/{kelas}', [KelasController::class, 'update'])->name('kelas.update');
+
+    // Rute untuk menghapus kelas
+    Route::delete('/kelas/{kelas}', [KelasController::class, 'destroy'])->name('kelas.destroy');
+
+    // ---------------------------------------------------- //
 });
 
 // Siswa routes
@@ -94,8 +136,8 @@ Route::prefix('kurikulum')->middleware(['auth', 'role:kurikulum'])->group(functi
     // CRUD Mata Pelajaran
     Route::resource('mata-pelajaran', MataPelajaranController::class)->names('kurikulum.mata-pelajaran');
 
-    // CRUD Jadwal Pelajaran
-    Route::resource('jadwal-pelajaran', JadwalPelajaranController::class)->names('kurikulum.jadwal-pelajaran');
+    // // CRUD Jadwal Pelajaran
+    // Route::resource('jadwal-pelajaran', JadwalPelajaranController::class)->names('kurikulum.jadwal-pelajaran');
 });
 
 // Walikelas Routes

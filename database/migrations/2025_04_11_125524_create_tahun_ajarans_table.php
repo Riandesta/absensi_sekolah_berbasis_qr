@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('tahun_ajaran', function (Blueprint $table) {
             $table->id();
-            $table->year('tahun');
+            $table->year('tahun_awal');
+            $table->year('tahun_akhir');
             $table->string('semester');
             $table->boolean('is_aktif')->default(true);
             $table->timestamps();

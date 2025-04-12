@@ -2,72 +2,80 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Models\Jurusan;
 use App\Models\Karyawan;
+use App\Models\TahunAjaran;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class KaryawanController extends Controller
 {
     public function index()
     {
-        $karyawan = Karyawan::where('jabatan', '!=', 'guru')->get();
-        return view('admin.kelola_karyawan', compact('karyawan'));
+        $karyawan = Karyawan::with('kelas', 'jurusan')->latest()->paginate(10);
+        return view('karyawan.index', compact('karyawan'));
     }
 
     public function create()
-    {
-        return view('admin.tambah_karywan');
-    }
+{
+    $jurusan = Jurusan::all(); // Assuming you have a Jurusan model to get the list
+    $tahunAjaran = TahunAjaran::all(); // Assuming you have a TahunAjaran model for the data
+    return view('karyawan.create', compact('jurusan', 'tahunAjaran'));
+}
+
 
     public function store(Request $request)
     {
         $request->validate([
-            'nip' => 'required|unique:karyawan,nip',
-            'nuptk' => 'nullable|unique:karyawan,nuptk',
+            'nip' => 'required|unique:karyawan',
             'nama_lengkap' => 'required',
             'jenis_kelamin' => 'required',
-            'kelas_id' => 'nullable|exists:kelas,id',
-            'jurusan_id' => 'nullable|exists:jurusan,id',
-            'tahun_ajaran_id' => 'nullable|exists:tahun_ajaran,id',
-            'no_wa' => 'nullable|unique:karyawan,no_wa',
-            'foto' => 'nullable|image',
             'jabatan' => 'required',
-            'tempat_lahir' => 'nullable',
-            'tanggal_lahir' => 'nullable|date',
+            'username' => 'required|unique:users,username',
+            'password' => 'required',
         ]);
 
-        Karyawan::create($request->all());
-        return redirect()->route('admin.karyawan.index')->with('success', 'Karyawan created successfully.');
+        $karyawan = Karyawan::create($request->except(['username', 'password']) + [
+            'foto' => $request->foto ?? null,
+        ]);
+
+        User::create([
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+            'role' => 'karyawan',
+            'related_id' => $karyawan->id,
+            'status' => 'aktif'
+        ]);
+
+        return redirect()->route('karyawan.index')->with('success', 'Data karyawan dan akun berhasil ditambahkan.');
     }
 
     public function edit(Karyawan $karyawan)
     {
-        return view('admin.edit_karyawan', compact('karyawan'));
+        return view('karyawan.edit', compact('karyawan'));
     }
 
     public function update(Request $request, Karyawan $karyawan)
     {
-        $request->validate([
-            'nip' => 'required|unique:karyawan,nip,' . $karyawan->id,
-            'nuptk' => 'nullable|unique:karyawan,nuptk,' . $karyawan->id,
-            'nama_lengkap' => 'required',
-            'jenis_kelamin' => 'required',
-            'kelas_id' => 'nullable|exists:kelas,id',
-            'jurusan_id' => 'nullable|exists:jurusan,id',
-            'tahun_ajaran_id' => 'nullable|exists:tahun_ajaran,id',
-            'no_wa' => 'nullable|unique:karyawan,no_wa,' . $karyawan->id,
-            'foto' => 'nullable|image',
-            'jabatan' => 'required',
-            'tempat_lahir' => 'nullable',
-            'tanggal_lahir' => 'nullable|date',
-        ]);
-
         $karyawan->update($request->all());
-        return redirect()->route('admin.karyawan.index')->with('success', 'Karyawan updated successfully.');
+
+        $user = User::where('role', 'karyawan')->where('related_id', $karyawan->id)->first();
+        if ($user) {
+            $user->update([
+                'username' => $request->username,
+                'password' => $request->password ? Hash::make($request->password) : $user->password,
+            ]);
+        }
+
+        return redirect()->route('karyawan.index')->with('success', 'Data karyawan berhasil diperbarui.');
     }
 
     public function destroy(Karyawan $karyawan)
     {
+        $user = User::where('role', 'karyawan')->where('related_id', $karyawan->id);
+        $user->delete();
         $karyawan->delete();
-        return redirect()->route('admin.karyawan.index')->with('success', 'Karyawan deleted successfully.');
+        return redirect()->route('karyawan.index')->with('success', 'Data karyawan dan akun berhasil dihapus.');
     }
 }

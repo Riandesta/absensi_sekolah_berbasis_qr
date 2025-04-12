@@ -7,59 +7,50 @@ use Illuminate\Http\Request;
 
 class MataPelajaranController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        $mataPelajaran = MataPelajaran::paginate(10);
+        return view('mata-pelajaran.index', compact('mataPelajaran'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        return view('mata-pelajaran.create');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'nama_mapel' => 'required|max:255',
+            'kode_mapel' => 'required|max:10',
+        ]);
+
+        MataPelajaran::create($request->all());
+        return redirect()->route('mata-pelajaran.index')->with('success', 'Mata pelajaran berhasil ditambahkan');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(MataPelajaran $mataPelajaran)
+    public function edit($id)
     {
-        //
+        $item = MataPelajaran::findOrFail($id);
+        return view('mata-pelajaran.edit', compact('item'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(MataPelajaran $mataPelajaran)
+    public function update(Request $request, $id)
     {
-        //
+        $request->validate([
+            'nama_mapel' => 'required|max:255',
+            'kode_mapel' => 'required|max:10',
+        ]);
+
+        $item = MataPelajaran::findOrFail($id);
+        $item->update($request->all());
+        return redirect()->route('mata-pelajaran.index')->with('success', 'Mata pelajaran berhasil diperbarui');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, MataPelajaran $mataPelajaran)
+    public function destroy($id)
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(MataPelajaran $mataPelajaran)
-    {
-        //
+        $item = MataPelajaran::findOrFail($id);
+        $item->delete();
+        return redirect()->route('mata-pelajaran.index')->with('success', 'Mata pelajaran berhasil dihapus');
     }
 }
