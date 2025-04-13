@@ -70,7 +70,7 @@ class AbsensiGerbangController extends Controller
         // Cek apakah pengguna saat ini adalah admin
         $isAdmin = false;
         if (Auth::check()) {
-            $isAdmin = Auth::user()->hasRole('admin');
+            // $isAdmin = Auth::user()->hasRole('admin');
         } else {
             return back()->withErrors(['message' => 'Anda harus login terlebih dahulu.']);
         }
