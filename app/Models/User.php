@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class User extends Authenticatable
 {
+    use HasRoles;
+
     protected $fillable = [
         'username', 'password', 'role', 'related_id', 'email', 'status'
     ];
@@ -30,5 +33,10 @@ class User extends Authenticatable
     public function kelas()
     {
         return $this->belongsTo(Kelas::class, 'related_id'); // Gunakan belongsTo untuk relasi ke Kelas
+    }
+
+    public function hasRole($role)
+    {
+        return $this->role === $role;
     }
 }

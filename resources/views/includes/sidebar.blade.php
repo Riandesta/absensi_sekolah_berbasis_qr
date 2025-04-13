@@ -1,10 +1,10 @@
 <div id="sidebar" class="active">
     <div class="sidebar-wrapper active">
         <div class="sidebar-header">
-            <div class="d-flex justify-content-between">
-                <div class="logo">
-                    <a href="#"><img src="assets/images/logo.png" alt="Logo"></a>
-                </div>
+            <div class="logo text-center">
+                <a href="#"><img src="{{ asset('assets/images/logo/igasar.png') }}" alt="Logo" style="height:70px;"></a>
+            </div>
+            <div class="d-flex ">
                 <div class="toggler">
                     <a href="#" class="sidebar-hide d-xl-none d-block"><i class="bi bi-x bi-middle"></i></a>
                 </div>
@@ -30,9 +30,8 @@
                             <span>Manajemen Pengguna</span>
                         </a>
                         <ul class="submenu">
-                            <li class="submenu-item"><a href="#">Siswa</a></li>
-                            <li class="submenu-item"><a href="#">Guru</a></li>
-                            <li class="submenu-item"><a href="#">Karyawan</a></li>
+                            <li class="submenu-item {{ request()->is('siswa') ? 'active' : '' }}"><a href="{{ route('siswa.index') }}">Siswa</a></li>
+                            <li class="submenu-item {{ request()->is('karyawan') ? 'active' : '' }}"><a href="{{ route('karyawan.index') }}">Karyawan</a></li>
                         </ul>
                     </li>
                 @endif
@@ -124,16 +123,34 @@
                         </ul>
                     </li>
                 @endif
+
+                <!-- Jadwal Pelajaran -->
+                @if (auth()->check() && in_array(auth()->user()->role, ['admin', 'kurikulum']))
+                    <li class="sidebar-item has-sub {{ request()->is('jadwal-pelajaran*') ? 'active' : '' }}">
+                        <a href="#" class='sidebar-link'>
+                            <i class="bi bi-calendar-week"></i>
+                            <span>Jadwal Pelajaran</span>
+                        </a>
+                        <ul class="submenu">
+                            <li class="submenu-item {{ request()->is('jadwal-pelajaran') ? 'active' : '' }}">
+                                <a href="{{ route('jadwal-pelajaran.index') }}">Daftar Jadwal</a>
+                            </li>
+                            <li class="submenu-item {{ request()->is('jadwal-pelajaran/create') ? 'active' : '' }}">
+                                <a href="{{ route('jadwal-pelajaran.create') }}">Tambah Jadwal</a>
+                            </li>
+                        </ul>
+                    </li>
+                @endif
             </ul>
         </div>
-        <div class="mt-4 ml-4">
+        {{-- <div class="mt-4 ml-4">
             <form action="{{ route('logout') }}" method="POST">
                 @csrf
-                <button type="submit" class="btn btn-danger btn-block">
-                    <i class="bi bi-box-arrow-right mr-2"></i> Keluar
+                <button type="submit" class="btn btn-danger d-flex align-items-center justify-content-center w-100">
+                    <i class="bi bi-box-arrow-right me-2"></i> Keluar
                 </button>
             </form>
-        </div>
+        </div> --}}
     </div>
     <button class="sidebar-toggler btn x"><i data-feather="x"></i></button>
 </div>

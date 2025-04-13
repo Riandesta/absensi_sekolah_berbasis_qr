@@ -3,63 +3,68 @@
 namespace App\Http\Controllers;
 
 use App\Models\PetugasPiket;
+use App\Models\Karyawan;
 use Illuminate\Http\Request;
 
 class PetugasPiketController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        $petugasPiket = PetugasPiket::with('karyawan')->paginate(10);
+        return view('petugas-piket.index', compact('petugasPiket'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        $karyawanList = Karyawan::all();
+        return view('petugas-piket.create', compact('karyawanList'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'karyawan_id' => 'required|exists:karyawan,id',
+            'tanggal' => 'required|date',
+            'shift' => 'required|in:Pagi,Siang,Sore',
+            'keterangan' => 'nullable|string',
+        ]);
+
+        PetugasPiket::create($validated);
+
+        return redirect()->route('petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil ditambahkan.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(PetugasPiket $petugasPiket)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(PetugasPiket $petugasPiket)
     {
-        //
+        $karyawanList = Karyawan::all();
+        return view('petugas-piket.edit', compact('petugasPiket', 'karyawanList'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, PetugasPiket $petugasPiket)
     {
-        //
+        $validated = $request->validate([
+            'karyawan_id' => 'required|exists:karyawan,id',
+            'tanggal' => 'required|date',
+            'shift' => 'required|in:Pagi,Siang,Sore',
+            'keterangan' => 'nullable|string',
+        ]);
+
+        $petugasPiket->update($validated);
+
+        return redirect()->route('petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil diperbarui.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    public function validateActivePetugas($karyawanId, $tanggal, $shift)
+    {
+        return PetugasPiket::where('karyawan_id', $karyawanId)
+            ->where('tanggal', $tanggal)
+            ->where('shift', $shift)
+            ->exists();
+    }
+
     public function destroy(PetugasPiket $petugasPiket)
     {
-        //
+        $petugasPiket->delete();
+        return redirect()->route('petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil dihapus.');
     }
 }

@@ -1,6 +1,7 @@
 @extends('templates')
 
 @section('header', 'Tahun Ajaran')
+@section('breadcrumb', 'index')
 
 @section('content')
     <div class="page-content">

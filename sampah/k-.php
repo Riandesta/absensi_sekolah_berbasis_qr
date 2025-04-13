@@ -2,16 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Kelas;
 use App\Models\Jurusan;
 use App\Models\Karyawan;
 use App\Models\TahunAjaran;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class KaryawanController extends Controller
@@ -33,6 +31,7 @@ class KaryawanController extends Controller
         $kelas = Kelas::all();
         $jurusan = Jurusan::all();
         $tahunAjaran = TahunAjaran::all();
+
         return view('karyawan.create', compact('kelas', 'jurusan', 'tahunAjaran'));
     }
 
@@ -48,7 +47,7 @@ class KaryawanController extends Controller
             'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
             'jabatan' => 'required|string|max:255',
             'kelas_id' => 'nullable|exists:kelas,id',
-            'jurusan_id' => 'nullable|exists:jurusan,id',
+            'jurusan_id' => 'nullable|exists:jurusans,id',
             'tahun_ajaran_id' => 'nullable|exists:tahun_ajaran,id',
             'no_wa' => 'nullable|regex:/^08[0-9]{9,}$/',
             'tempat_lahir' => 'nullable|string|max:255',
@@ -67,20 +66,7 @@ class KaryawanController extends Controller
         // Save employee data
         try {
             $karyawan = Karyawan::create($validated);
-
-            // Create related user account with role "karyawan"
-            User::create([
-                'username' => $validated['username'],
-                'password' => Hash::make($validated['password']),
-                'role' => 'karyawan', // Role otomatis "karyawan"
-                'related_id' => $karyawan->id,
-                'status' => 'aktif',
-            ]);
-
-            // Generate QR Code
-            $this->generateQrCode($karyawan);
-
-            return redirect()->route('karyawan.index')->with('success', 'Data karyawan dan akun berhasil ditambahkan.');
+            return redirect()->route('karyawan.index')->with('success', 'Data karyawan berhasil ditambahkan.');
         } catch (\Exception $e) {
             Log::error('Error creating employee: ' . $e->getMessage());
             return back()->with('error', 'Terjadi kesalahan saat menyimpan data karyawan.')->withInput();
@@ -92,9 +78,10 @@ class KaryawanController extends Controller
      */
     public function edit(Karyawan $karyawan)
     {
-        $kelas = \App\Models\Kelas::all();
-        $jurusan = \App\Models\Jurusan::all();
-        $tahunAjaran = \App\Models\TahunAjaran::all();
+        $kelas = Kelas::all();
+        $jurusan = Jurusan::all();
+        $tahunAjaran = TahunAjaran::all();
+
         return view('karyawan.edit', compact('karyawan', 'kelas', 'jurusan', 'tahunAjaran'));
     }
 
@@ -110,7 +97,7 @@ class KaryawanController extends Controller
             'jenis_kelamin' => 'required|in:Laki-laki,Perempuan',
             'jabatan' => 'required|string|max:255',
             'kelas_id' => 'nullable|exists:kelas,id',
-            'jurusan_id' => 'nullable|exists:jurusan,id',
+            'jurusan_id' => 'nullable|exists:jurusans,id',
             'tahun_ajaran_id' => 'nullable|exists:tahun_ajaran,id',
             'no_wa' => 'nullable|regex:/^08[0-9]{9,}$/',
             'tempat_lahir' => 'nullable|string|max:255',
@@ -141,21 +128,6 @@ class KaryawanController extends Controller
             // Update employee data
             $karyawan->update($validated);
 
-            // Update related user account
-            $user = User::where('role', 'karyawan')->where('related_id', $karyawan->id)->first();
-            if ($user) {
-                $userData = [
-                    'password' => $request->password ? Hash::make($request->password) : $user->password,
-                ];
-
-                // Update username if provided
-                if ($request->filled('username')) {
-                    $userData['username'] = $request->username;
-                }
-
-                $user->update($userData);
-            }
-
             return redirect()->route('karyawan.index')->with('success', 'Data karyawan berhasil diperbarui.');
         } catch (\Exception $e) {
             Log::error('Error updating employee: ' . $e->getMessage());
@@ -182,25 +154,16 @@ class KaryawanController extends Controller
                 }
             }
 
-            // Delete related user account
-            $user = User::where('role', 'karyawan')->where('related_id', $karyawan->id)->first();
-            if ($user) {
-                $user->delete();
-            }
-
             // Delete employee data
             $karyawan->delete();
 
-            return redirect()->route('karyawan.index')->with('success', 'Data karyawan dan akun berhasil dihapus.');
+            return redirect()->route('karyawan.index')->with('success', 'Data karyawan berhasil dihapus.');
         } catch (\Exception $e) {
             Log::error('Error deleting employee: ' . $e->getMessage());
             return back()->with('error', 'Terjadi kesalahan saat menghapus data karyawan.');
         }
     }
 
-    /**
-     * Download QR code as a PDF document for the specified employee.
-     */
     public function downloadQrCode(Karyawan $karyawan)
     {
         try {
@@ -211,47 +174,36 @@ class KaryawanController extends Controller
                 'nama' => $karyawan->nama_lengkap
             ]);
 
-            // Generate SVG QR code optimized for mobile devices
-            $qrSvg = QrCode::format('svg')
-                ->size(300)     // Optimal size for mobile screens
-                ->margin(1)     // Smaller margin to maximize QR size
-                ->errorCorrection('H')  // High error correction for better scanning
-                ->generate($qrContent);
-
+            // Generate SVG QR code instead of PNG (no ImageMagick needed)
+            $qrSvg = QrCode::format('svg')->size(150)->generate($qrContent);
             $qrBase64 = base64_encode($qrSvg);
 
-            // Employee data
-            $karyawanData = [
+            // Get employee data for the ID card
+            $data = (object)[
                 'nama' => $karyawan->nama_lengkap,
-                'nip' => $karyawan->nip,
-                'jabatan' => $karyawan->jabatan ?? '',
-                'qrBase64' => $qrBase64
+                'nip' => $karyawan->nip ?? '', // Using NIP for employee ID
+                'nuptk' => $karyawan->nuptk ?? '',
+                'kelas' => (object)[
+                    'kelas' => $karyawan->jabatan ?? '' // Using position/jabatan as "kelas"
+                ]
             ];
 
-            // Generate PDF with mobile-friendly QR code template
-            $pdf = Pdf::loadView('karyawan.id-card', compact('karyawanData'));
-
-            // Use smaller paper size more suitable for mobile (A6 is half of A5)
-            $pdf->setPaper('a6');
-
-            // Set options for better rendering on mobile devices
-            $pdf->setOptions([
-                'dpi' => 150,
-                'defaultFont' => 'sans-serif',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true
-            ]);
+            // Generate PDF with ID card layout
+            $pdf = Pdf::loadView('karyawan.id-card', compact('data', 'qrBase64'));
+            $pdf->setPaper([0, 0, 236.88, 322.44]); // 3.3 inches × 2.1 inches (ID card size)
+            $pdf->setOptions(['dpi' => 150, 'defaultFont' => 'sans-serif']);
 
             // Return PDF download
-            return $pdf->download('qr-code-' . $karyawan->nama_lengkap . '.pdf');
+            return $pdf->download('id-card-' . $karyawan->nama_lengkap . '.pdf');
+
         } catch (\Exception $e) {
-            Log::error('Error generating QR code PDF: ' . $e->getMessage());
-            return back()->with('error', 'Terjadi kesalahan saat membuat QR Code PDF: ' . $e->getMessage());
+            Log::error('Error downloading QR code ID card: ' . $e->getMessage());
+            return back()->with('error', 'Terjadi kesalahan saat mengunduh Kartu ID: ' . $e->getMessage());
         }
     }
 
     /**
-     * View QR code directly in browser for the specified employee.
+     * Download just the QR Code image for the specified employee.
      */
     public function downloadQrCodeOnly(Karyawan $karyawan)
     {
@@ -263,47 +215,20 @@ class KaryawanController extends Controller
                 'nama' => $karyawan->nama_lengkap
             ]);
 
-            // Generate SVG QR code optimized for mobile devices
-            $qrSvg = QrCode::format('svg')
-                ->size(300)     // Optimal size for mobile screens
-                ->margin(1)     // Smaller margin to maximize QR size
-                ->errorCorrection('H')  // High error correction for better scanning
-                ->generate($qrContent);
+            // Generate SVG QR code
+            $qrSvg = QrCode::format('svg')->size(150)->generate($qrContent);
 
-            // Display SVG directly in browser with proper headers for mobile
+            // Create filename for download
+            $fileName = 'qr-code-' . $karyawan->nama_lengkap . '-' . $karyawan->nip . '.svg';
+
+            // Return SVG as download with proper headers
             return response($qrSvg)
                 ->header('Content-Type', 'image/svg+xml')
-                ->header('Content-Disposition', 'inline; filename="qr-code-' . $karyawan->nama_lengkap . '.svg"');
+                ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"');
+
         } catch (\Exception $e) {
-            Log::error('Error displaying QR code: ' . $e->getMessage());
-            return back()->with('error', 'Terjadi kesalahan saat menampilkan QR Code: ' . $e->getMessage());
+            Log::error('Error downloading QR code: ' . $e->getMessage());
+            return back()->with('error', 'Terjadi kesalahan saat mengunduh QR Code: ' . $e->getMessage());
         }
-    }
-
-    /**
-     * Generate QR Code for the specified employee.
-     */
-    private function generateQrCode(Karyawan $karyawan)
-    {
-        // Ensure directory exists
-        if (!Storage::disk('public')->exists('qr-codes')) {
-            Storage::disk('public')->makeDirectory('qr-codes');
-        }
-
-        // Create unique file name for QR Code
-        $fileName = 'qr-code-' . $karyawan->id . '.svg';
-
-        // Save QR Code to storage
-        $path = storage_path('app/public/qr-codes/' . $fileName);
-        QrCode::size(200)->generate(json_encode([
-            'id' => $karyawan->id,
-            'nip' => $karyawan->nip,
-            'nama' => $karyawan->nama_lengkap
-        ]), $path);
-
-        // Save path to database
-        $karyawan->update([
-            'qr_code' => 'storage/qr-codes/' . $fileName,
-        ]);
     }
 }

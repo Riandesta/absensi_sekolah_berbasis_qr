@@ -27,16 +27,11 @@
 
         <!-- Main Content -->
         <div id="main">
-            <header class="mb-3">
-                <a href="#" class="burger-btn d-block d-xl-none">
-                    <i class="bi bi-justify fs-3"></i>
-                </a>
-            </header>
-
-            <!-- Page Heading -->
-            <div class="page-heading">
-                <h3>@yield('header')</h3>
+            <div class="mb-5 ">
+                @include('includes.header')
             </div>
+
+
 
             <!-- Page Content -->
             <div class="page-content">
@@ -74,6 +69,7 @@
     <script src="{{ asset('assets/js/main.js') }}"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.0.9/html5-qrcode.min.js"></script>
 </body>
 
 </html>

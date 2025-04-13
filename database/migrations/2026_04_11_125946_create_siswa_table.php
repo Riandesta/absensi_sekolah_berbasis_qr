@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string('foto')->nullable();
             $table->string('tempat_lahir')->nullable();
             $table->date('tanggal_lahir')->nullable();
+            $table->string('qr_code')->nullable();
             $table->foreign('kelas_id')->references('id')->on('kelas');
             $table->foreign('jurusan_id')->references('id')->on('jurusan');
             $table->foreign('tahun_ajaran_id')->references('id')->on('tahun_ajaran');
