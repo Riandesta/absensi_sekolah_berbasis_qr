@@ -179,10 +179,10 @@
                     </table>
                 </div>
 
-                <!-- Pagination -->
-                <div class="d-flex justify-content-center mt-4">
-                    {{ $absensi->appends(request()->except('page'))->links() }}
-                </div>
+               <!-- Pagination -->
+<div class="mt-4 d-flex justify-content-center">
+    {{ $absensi->appends(request()->except('page'))->links('pagination::bootstrap-5') }}
+</div>
             </div>
         </div>
     </div>

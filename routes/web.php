@@ -104,7 +104,7 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/karyawan/edit/{karyawan}', [KaryawanController::class, 'edit'])->name('karyawan.edit');
     Route::put('/karyawan/update/{karyawan}', [KaryawanController::class, 'update'])->name('karyawan.update');
     Route::delete('/karyawan/delete/{karyawan}', [KaryawanController::class, 'destroy'])->name('karyawan.destroy');
-    
+
 
     // Admin can download QR codes for any karyawan using admin routes
     Route::get('/karyawan/{karyawan}/download-qrcode', [KaryawanController::class, 'downloadQrCode'])->name('admin.karyawan.download-qrcode');

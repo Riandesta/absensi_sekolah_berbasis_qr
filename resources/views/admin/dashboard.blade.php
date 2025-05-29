@@ -87,17 +87,17 @@
                 <h4>Menu Akses Cepat</h4>
             </div>
             <div class="card-body">
-                <div class="row">
+                <div class="row d-flex justify-content-center">
                     <div class="col-md-3 col-6 mb-3">
                         <a href="{{ route(Auth::user()->role .'.absensi-gerbang.scan') }}" class="btn btn-primary btn-block">
                             <i class="bi bi-qr-code me-2"></i> Scan Absensi Gerbang
                         </a>
                     </div>
-                    <div class="col-md-3 col-6 mb-3">
+                    {{-- <div class="col-md-3 col-6 mb-3">
                         <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.scan') }}" class="btn btn-success btn-block">
                             <i class="bi bi-person-video3 me-2"></i> Scan Absensi Guru
                         </a>
-                    </div>
+                    </div> --}}
                     <div class="col-md-3 col-6 mb-3">
                         <a href="{{ route('siswa.index') }}" class="btn btn-info btn-block">
                             <i class="bi bi-mortarboard me-2"></i> Manajemen Siswa

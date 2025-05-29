@@ -96,25 +96,148 @@ class AbsensiRiwayatController extends Controller
     }
 
 
-    /**
-     * Mendapatkan data absensi untuk walikelas
-     */
-   /**
- * Menangani rute laporan-absensi-gerbang
- * Public method untuk memastikan dapat diakses melalui route
- */
-// In AbsensiRiwayatController.php
-// Modify the laporanAbsensiGerbang method:
+ public function laporanAbsensiGerbang(Request $request)
+{
+    $user = Auth::user();
+    $type = 'gerbang';
+    $period = $request->input('period', 'all');
+    $customStart = $request->input('start_date');
+    $customEnd = $request->input('end_date');
+    $kelasId = $request->input('kelas_id');
+    $role = $request->input('role');
 
-    public function laporanAbsensiGerbang(Request $request)
+    [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+    $karyawan = Karyawan::find($user->related_id);
+    if (!$karyawan) {
+        return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+    }
+
+    $jabatan = strtolower($karyawan->jabatan ?? '');
+
+    // Debug: Mari kita lihat struktur data yang sebenarnya
+    if (request()->has('debug')) {
+        $debugData = AbsensiGerbang::with(['user', 'siswa'])->take(5)->get();
+        foreach ($debugData as $item) {
+            echo "<pre>";
+            echo "AbsensiGerbang ID: " . $item->id . "\n";
+            echo "Related ID: " . $item->related_id . "\n";
+            echo "User exists: " . ($item->user ? 'YES' : 'NO') . "\n";
+            if ($item->user) {
+                echo "User ID: " . $item->user->id . "\n";
+                echo "User Role: " . $item->user->role . "\n";
+            }
+            echo "Siswa exists: " . ($item->siswa ? 'YES' : 'NO') . "\n";
+            if ($item->siswa) {
+                echo "Siswa ID: " . $item->siswa->id . "\n";
+                echo "Siswa Nama: " . $item->siswa->nama_lengkap . "\n";
+            }
+            echo "---\n";
+            echo "</pre>";
+        }
+        exit;
+    }
+
+    // Untuk Kurikulum
+  if ($jabatan === 'kurikulum') {
+    $kelasList = Kelas::all();
+    $kelas = $kelasId ? Kelas::find($kelasId) : null;
+
+    // Base query - perbaikan relasi
+    $query = AbsensiGerbang::with(['user', 'user.karyawan', 'user.siswa', 'user.siswa.kelas']);
+
+    if ($role === 'siswa') {
+        // Filter untuk siswa: ambil yang user rolenya siswa
+        $query->whereHas('user', function($q) {
+            $q->where('role', 'siswa');
+        });
+        
+        if ($kelasId) {
+            $query->whereHas('user.siswa', function($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            });
+        }
+    } elseif ($role === 'karyawan') {
+        // Filter untuk karyawan: ambil yang user rolenya karyawan
+        $query->whereHas('user', function($q) {
+            $q->where('role', 'karyawan');
+        });
+    } else {
+        // Jika tidak ada filter role, tampilkan semua
+        if ($kelasId) {
+            $query->where(function($q) use ($kelasId) {
+                $q->whereHas('user', function($userQ) {
+                    $userQ->where('role', 'siswa');
+                })->whereHas('user.siswa', function($siswaQ) use ($kelasId) {
+                    $siswaQ->where('kelas_id', $kelasId);
+                })->orWhereHas('user', function($userQ) {
+                    $userQ->where('role', 'karyawan');
+                });
+            });
+        }
+    }
+
+    if ($startDate && $endDate) {
+        $query->whereBetween('tanggal', [$startDate, $endDate]);
+    }
+
+    $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+    return view('karyawan.laporan-absensi-gerbang', compact(
+        'absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas', 'role'
+    ));
+}
+    // Untuk Wali Kelas (similar logic)
+   if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
+    $kelasId = $karyawan->kelas_id;
+    $kelas = Kelas::find($kelasId);
+    if (!$kelas) {
+        return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+    }
+
+    // Perbaikan query untuk wali kelas
+    $query = AbsensiGerbang::with(['user', 'user.karyawan', 'user.siswa', 'user.siswa.kelas']);
+
+    if ($role === 'siswa') {
+        $query->whereHas('user', function($q) {
+            $q->where('role', 'siswa');
+        })->whereHas('user.siswa', function($q) use ($kelasId) {
+            $q->where('kelas_id', $kelasId);
+        });
+    } elseif ($role === 'karyawan') {
+        $query->whereHas('user', function($q) {
+            $q->where('role', 'karyawan');
+        });
+    } else {
+        // Default untuk wali kelas: tampilkan siswa di kelasnya
+        $query->whereHas('user', function($q) {
+            $q->where('role', 'siswa');
+        })->whereHas('user.siswa', function($q) use ($kelasId) {
+            $q->where('kelas_id', $kelasId);
+        });
+    }
+
+    if ($startDate && $endDate) {
+        $query->whereBetween('tanggal', [$startDate, $endDate]);
+    }
+
+    $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+    return view('karyawan.laporan-absensi-gerbang', compact(
+        'absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas', 'role'
+    ));
+}
+}
+
+    /**
+     * Menangani rute laporan-absensi-siswa
+     */
+    public function laporanAbsensiSiswa(Request $request)
     {
         $user = Auth::user();
-        $type = 'gerbang'; // Force type to be gerbang
+        $type = 'kelas'; // Force type to be kelas
         $period = $request->input('period', 'all');
         $customStart = $request->input('start_date');
         $customEnd = $request->input('end_date');
-        $kelasId = $request->input('kelas_id');
-        $userType = $request->input('role'); // New parameter for filtering by user type
 
         // Set tanggal berdasarkan periode
         [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
@@ -128,7 +251,7 @@ class AbsensiRiwayatController extends Controller
 
         $jabatan = strtolower($karyawan->jabatan ?? '');
 
-        // Untuk Wali Kelas
+        // Untuk walikelas
         if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
             $kelasId = $karyawan->kelas_id;
             $kelas = Kelas::find($kelasId);
@@ -137,21 +260,11 @@ class AbsensiRiwayatController extends Controller
                 return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
             }
 
-            // Dapatkan ID siswa dari kelas yang diampunya
-            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-
-            // Riwayat absensi gerbang siswa di kelas
-            $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
-                ->with(['siswa', 'karyawan']);
-
-            // Apply user type filter if specified
-            if ($userType) {
-                if ($userType === 'siswa') {
-                    $query->whereHas('siswa');
-                } elseif ($userType === 'karyawan') {
-                    $query->whereHas('karyawan');
-                }
-            }
+            // Riwayat absensi siswa di kelas
+            $query = AbsensiSiswaKelas::whereHas('jadwal', function ($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            })
+                ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
 
             if ($startDate && $endDate) {
                 $query->whereBetween('tanggal', [$startDate, $endDate]);
@@ -159,11 +272,15 @@ class AbsensiRiwayatController extends Controller
 
             $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
 
-            return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas', 'userType'));
+            // Tampilkan view tanpa dropdown kelas untuk walikelas
+            return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
         }
 
         // Untuk Kurikulum
         if ($jabatan === 'kurikulum') {
+            // Get kelasId from request for kurikulum
+            $kelasId = $request->input('kelas_id');
+
             // Dapatkan semua kelas untuk dropdown filter
             $kelasList = Kelas::all();
 
@@ -173,28 +290,13 @@ class AbsensiRiwayatController extends Controller
                 $kelas = Kelas::find($kelasId);
             }
 
-            // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
-            $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+            // Riwayat absensi siswa di kelas
+            $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
 
-            // Apply user type filter if specified
-            if ($userType) {
-                if ($userType === 'siswa') {
-                    $query->whereHas('siswa');
-                } elseif ($userType === 'karyawan') {
-                    $query->whereHas('karyawan');
-                }
-            }
-
-            // If no user type filter and kelas filter, we need to ensure we're only looking at students
-            if (!$userType && $kelasId) {
-                $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-                $query->whereIn('related_id', $siswaIds);
-            } elseif ($kelasId) {
-                // If there is both a user type filter and kelas filter, only apply class filter for students
-                if ($userType === 'siswa') {
-                    $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-                    $query->whereIn('related_id', $siswaIds);
-                }
+            if ($kelasId) {
+                $query->whereHas('jadwal', function ($q) use ($kelasId) {
+                    $q->where('kelas_id', $kelasId);
+                });
             }
 
             if ($startDate && $endDate) {
@@ -203,98 +305,12 @@ class AbsensiRiwayatController extends Controller
 
             $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
 
-            return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas', 'userType'));
+            return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
         }
 
         // Default jika jabatan tidak sesuai
         return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
     }
-
-
-
-  /**
- * Menangani rute laporan-absensi-siswa
- */
-public function laporanAbsensiSiswa(Request $request)
-{
-    $user = Auth::user();
-    $type = 'kelas'; // Force type to be kelas
-    $period = $request->input('period', 'all');
-    $customStart = $request->input('start_date');
-    $customEnd = $request->input('end_date');
-
-    // Set tanggal berdasarkan periode
-    [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
-
-    // Cek jabatan pengguna
-    $karyawan = Karyawan::find($user->related_id);
-
-    if (!$karyawan) {
-        return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
-    }
-
-    $jabatan = strtolower($karyawan->jabatan ?? '');
-
-    // Untuk walikelas
-    if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
-        $kelasId = $karyawan->kelas_id;
-        $kelas = Kelas::find($kelasId);
-
-        if (!$kelas) {
-            return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
-        }
-
-        // Riwayat absensi siswa di kelas
-        $query = AbsensiSiswaKelas::whereHas('jadwal', function($q) use ($kelasId) {
-                $q->where('kelas_id', $kelasId);
-            })
-            ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
-        }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
-
-        // Tampilkan view tanpa dropdown kelas untuk walikelas
-        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
-    }
-
-    // Untuk Kurikulum
-    if ($jabatan === 'kurikulum') {
-        // Get kelasId from request for kurikulum
-        $kelasId = $request->input('kelas_id');
-
-        // Dapatkan semua kelas untuk dropdown filter
-        $kelasList = Kelas::all();
-
-        // Filter berdasarkan kelas jika ada
-        $kelas = null;
-        if ($kelasId) {
-            $kelas = Kelas::find($kelasId);
-        }
-
-        // Riwayat absensi siswa di kelas
-        $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
-
-        if ($kelasId) {
-            $query->whereHas('jadwal', function($q) use ($kelasId) {
-                $q->where('kelas_id', $kelasId);
-            });
-        }
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
-        }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
-
-        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
-    }
-
-    // Default jika jabatan tidak sesuai
-    return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
-}
 
 
     /**
@@ -324,285 +340,192 @@ public function laporanAbsensiSiswa(Request $request)
         return $this->getWaliKelasAbsensiData($user, $karyawan, $type, $period, $startDate, $endDate, $customStart, $customEnd);
     }
 
-    /**
-     * Private method to get walikelas Absensi data
-     */
-   /**
- * Private method to get walikelas Absensi data
- */
-private function getWaliKelasAbsensiData($user, $karyawan, $type, $period, $startDate, $endDate, $customStart, $customEnd)
-{
-    $kelasId = $karyawan->kelas_id;
-    $kelas = Kelas::find($kelasId);
 
-    if (!$kelas) {
-        return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
-    }
+    private function getWaliKelasAbsensiData($user, $karyawan, $type, $period, $startDate, $endDate, $customStart, $customEnd)
+    {
+        $kelasId = $karyawan->kelas_id;
+        $kelas = Kelas::find($kelasId);
 
-    if ($type === 'gerbang') {
-        // Dapatkan ID siswa dari kelas yang diampunya
-        $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-
-        // Riwayat absensi gerbang siswa di kelas
-        $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
-            ->with(['siswa']);
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        if (!$kelas) {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
         }
 
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+        if ($type === 'gerbang') {
+            // Dapatkan ID siswa dari kelas yang diampunya
+            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
 
-        return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
-    } else {
-        // Riwayat absensi siswa di kelas
-        // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
-        $query = AbsensiSiswaKelas::whereHas('jadwal', function($q) use ($kelasId) {
+            // Riwayat absensi gerbang siswa di kelas
+            $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
+                ->with(['siswa']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
+        } else {
+            // Riwayat absensi siswa di kelas
+            // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
+            $query = AbsensiSiswaKelas::whereHas('jadwal', function ($q) use ($kelasId) {
                 $q->where('kelas_id', $kelasId);
             })
-            ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
+                ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
 
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
         }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
-
-        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
-    }
-}
-
-
-    /**
-     * Mendapatkan data absensi untuk Kurikulum
-     */
-   /**
- * Mendapatkan data absensi untuk Kurikulum
- */
-private function getKurikulumAbsensi($user, $type, $period, $startDate, $endDate, $customStart, $customEnd, $kelasId)
-{
-    // Dapatkan semua kelas untuk dropdown filter
-    $kelasList = Kelas::all();
-
-    // Filter berdasarkan kelas jika ada
-    $kelas = null;
-    if ($kelasId) {
-        $kelas = Kelas::find($kelasId);
     }
 
-    if ($type === 'gerbang') {
-        // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
-        $query = AbsensiGerbang::with(['siswa']);
+    private function getKurikulumAbsensi($user, $type, $period, $startDate, $endDate, $customStart, $customEnd, $kelasId)
+    {
+        // Dapatkan semua kelas untuk dropdown filter
+        $kelasList = Kelas::all();
 
-        // Get only student records
-        $studentIds = Siswa::pluck('id')->toArray();
-        $query->whereIn('related_id', $studentIds);
-
+        // Filter berdasarkan kelas jika ada
+        $kelas = null;
         if ($kelasId) {
-            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-            $query->whereIn('related_id', $siswaIds);
+            $kelas = Kelas::find($kelasId);
         }
 
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        if ($type === 'gerbang') {
+            // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
+            $query = AbsensiGerbang::with(['siswa']);
+
+            // Get only student records
+            $studentIds = Siswa::pluck('id')->toArray();
+            $query->whereIn('related_id', $studentIds);
+
+            if ($kelasId) {
+                $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+                $query->whereIn('related_id', $siswaIds);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
+        } else {
+            // Riwayat absensi siswa di kelas
+            $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
+
+            if ($kelasId) {
+                // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
+                $query->whereHas('jadwal', function ($q) use ($kelasId) {
+                    $q->where('kelas_id', $kelasId);
+                });
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
         }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
-
-        return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
-    } else {
-        // Riwayat absensi siswa di kelas
-        $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
-
-        if ($kelasId) {
-            // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
-            $query->whereHas('jadwal', function($q) use ($kelasId) {
-                $q->where('kelas_id', $kelasId);
-            });
-        }
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
-        }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
-
-        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
     }
-}
 
-    /**
-     * Mendapatkan rentang tanggal berdasarkan periode
-     */
-    // private function getDateRange($period, $customStart, $customEnd)
-    // {
-    //     $startDate = null;
-    //     $endDate = null;
-
-    //     switch ($period) {
-    //         case 'daily':
-    //             $startDate = now()->startOfDay();
-    //             $endDate = now()->endOfDay();
-    //             break;
-    //         case 'weekly':
-    //             $startDate = now()->startOfWeek();
-    //             $endDate = now()->endOfWeek();
-    //             break;
-    //         case 'monthly':
-    //             $startDate = now()->startOfMonth();
-    //             $endDate = now()->endOfMonth();
-    //             break;
-    //         case 'semester':
-    //             // Asumsi semester 1: Juli-Desember, semester 2: Januari-Juni
-    //             if (now()->month >= 7) {
-    //                 $startDate = now()->setMonth(7)->setDay(1)->startOfDay();
-    //                 $endDate = now()->setMonth(12)->endOfMonth()->endOfDay();
-    //             } else {
-    //                 $startDate = now()->setMonth(1)->setDay(1)->startOfDay();
-    //                 $endDate = now()->setMonth(6)->endOfMonth()->endOfDay();
-    //             }
-    //             break;
-    //         case 'yearly':
-    //             $startDate = now()->startOfYear();
-    //             $endDate = now()->endOfYear();
-    //             break;
-    //         case 'custom':
-    //             if ($customStart && $customEnd) {
-    //                 $startDate = Carbon::parse($customStart)->startOfDay();
-    //                 $endDate = Carbon::parse($customEnd)->endOfDay();
-    //             }
-    //             break;
-    //     }
-
-    //     return [$startDate, $endDate];
-    // }
     private function getDateRange($period, $customStart, $customEnd)
-{
-    $startDate = null;
-    $endDate = null;
+    {
+        $startDate = null;
+        $endDate = null;
 
-    switch ($period) {
-        case 'daily':
-            $startDate = now()->startOfDay();
-            $endDate = now()->endOfDay();
-            break;
-        case 'weekly':
-            $startDate = now()->startOfWeek();
-            $endDate = now()->endOfWeek();
-            break;
-        case 'monthly':
-            $startDate = now()->startOfMonth();
-            $endDate = now()->endOfMonth();
-            break;
-        case 'semester':
-            // Asumsi semester 1: Juli-Desember, semester 2: Januari-Juni
-            if (now()->month >= 7) {
-                $startDate = now()->setMonth(7)->setDay(1)->startOfDay();
-                $endDate = now()->setMonth(12)->endOfMonth()->endOfDay();
-            } else {
-                $startDate = now()->setMonth(1)->setDay(1)->startOfDay();
-                $endDate = now()->setMonth(6)->endOfMonth()->endOfDay();
-            }
-            break;
-        case 'yearly':
-            $startDate = now()->startOfYear();
-            $endDate = now()->endOfYear();
-            break;
-        case 'custom':
-            if ($customStart && $customEnd) {
-                $startDate = Carbon::parse($customStart)->startOfDay();
-                $endDate = Carbon::parse($customEnd)->endOfDay();
-            }
-            break;
+        switch ($period) {
+            case 'daily':
+                $startDate = now()->startOfDay();
+                $endDate = now()->endOfDay();
+                break;
+            case 'weekly':
+                $startDate = now()->startOfWeek();
+                $endDate = now()->endOfWeek();
+                break;
+            case 'monthly':
+                $startDate = now()->startOfMonth();
+                $endDate = now()->endOfMonth();
+                break;
+            case 'semester':
+                // Asumsi semester 1: Juli-Desember, semester 2: Januari-Juni
+                if (now()->month >= 7) {
+                    $startDate = now()->setMonth(7)->setDay(1)->startOfDay();
+                    $endDate = now()->setMonth(12)->endOfMonth()->endOfDay();
+                } else {
+                    $startDate = now()->setMonth(1)->setDay(1)->startOfDay();
+                    $endDate = now()->setMonth(6)->endOfMonth()->endOfDay();
+                }
+                break;
+            case 'yearly':
+                $startDate = now()->startOfYear();
+                $endDate = now()->endOfYear();
+                break;
+            case 'custom':
+                if ($customStart && $customEnd) {
+                    $startDate = Carbon::parse($customStart)->startOfDay();
+                    $endDate = Carbon::parse($customEnd)->endOfDay();
+                }
+                break;
+        }
+
+        Log::info('Date range:', [
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+        ]);
+
+        return [$startDate, $endDate];
     }
 
-    Log::info('Date range:', [
-        'startDate' => $startDate,
-        'endDate' => $endDate,
-    ]);
-
-    return [$startDate, $endDate];
-}
-
-    /**
-     * Menghasilkan laporan PDF absensi
-     */
-    // public function exportPdf(Request $request)
-    // {
-    //     $user = Auth::user();
-    //     $type = $request->input('type', 'gerbang');
-    //     $period = $request->input('period', 'all');
-    //     $customStart = $request->input('start_date');
-    //     $customEnd = $request->input('end_date');
-    //     $kelasId = $request->input('kelas_id');
-    //     $userType = $request->input('role'); // Get user type filter
-
-    //     // Set tanggal berdasarkan periode
-    //     [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
-
-    //     // Cek jabatan pengguna
-    //     if ($user->role === 'karyawan') {
-    //         $karyawan = Karyawan::find($user->related_id);
-    //         $jabatan = strtolower($karyawan->jabatan ?? '');
-
-    //         // Untuk Wali Kelas - hanya bisa export data kelasnya
-    //         if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
-    //             // Force kelasId to be the wali kelas's assigned class
-    //             $kelasId = $karyawan->kelas_id;
-    //             return $this->exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate, $userType);
-    //         }
-
-    //         // Untuk Kurikulum - bisa export data semua kelas
-    //         if ($jabatan === 'kurikulum') {
-    //             return $this->exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId, $userType);
-    //         }
-    //     }
-
-    //     return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk mengekspor data ini.');
-    // }
 
     public function exportPdf(Request $request)
-{
-    $user = Auth::user();
-    $type = $request->input('type', 'gerbang');
-    $period = $request->input('period', 'all');
-    $customStart = $request->input('start_date');
-    $customEnd = $request->input('end_date');
-    $kelasId = $request->input('kelas_id');
-    $userType = $request->input('role'); // Get user type filter
+    {
+        $user = Auth::user();
+        $type = $request->input('type', 'gerbang');
+        $period = $request->input('period', 'all');
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+        $kelasId = $request->input('kelas_id');
+        $userType = $request->input('role'); // Get user type filter
 
-    Log::info('Export PDF parameters:', [
-        'type' => $type,
-        'period' => $period,
-        'customStart' => $customStart,
-        'customEnd' => $customEnd,
-        'kelasId' => $kelasId,
-        'userType' => $userType,
-    ]);
+        Log::info('Export PDF parameters:', [
+            'type' => $type,
+            'period' => $period,
+            'customStart' => $customStart,
+            'customEnd' => $customEnd,
+            'kelasId' => $kelasId,
+            'userType' => $userType,
+        ]);
 
-    // Set tanggal berdasarkan periode
-    [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+        // Set tanggal berdasarkan periode
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
 
-    // Cek jabatan pengguna
-    if ($user->role === 'karyawan') {
-        $karyawan = Karyawan::find($user->related_id);
-        $jabatan = strtolower($karyawan->jabatan ?? '');
+        // Cek jabatan pengguna
+        if ($user->role === 'karyawan') {
+            $karyawan = Karyawan::find($user->related_id);
+            $jabatan = strtolower($karyawan->jabatan ?? '');
 
-        // Untuk Wali Kelas - hanya bisa export data kelasnya
-        if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
-            // Force kelasId to be the wali kelas's assigned class
-            $kelasId = $karyawan->kelas_id;
-            return $this->exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate, $userType);
+            // Untuk Wali Kelas - hanya bisa export data kelasnya
+            if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
+                // Force kelasId to be the wali kelas's assigned class
+                $kelasId = $karyawan->kelas_id;
+                return $this->exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate, $userType);
+            }
+
+            // Untuk Kurikulum - bisa export data semua kelas
+            if ($jabatan === 'kurikulum') {
+                return $this->exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId, $userType);
+            }
         }
 
-        // Untuk Kurikulum - bisa export data semua kelas
-        if ($jabatan === 'kurikulum') {
-            return $this->exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId, $userType);
-        }
+        return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk mengekspor data ini.');
     }
-
-    return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk mengekspor data ini.');
-}
 
     /**
      * Export PDF untuk Guru
@@ -665,320 +588,200 @@ private function getKurikulumAbsensi($user, $type, $period, $startDate, $endDate
     /**
      * Export PDF untuk walikelas
      */
-  /**
- * Export PDF untuk walikelas
- */
-private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate, $userType = null)
-{
-    $kelasId = $karyawan->kelas_id;
-    $kelas = Kelas::find($kelasId);
-
-    if (!$kelas) {
-        return redirect()->back()->with('error', 'Data kelas tidak ditemukan.');
-    }
-
-    if ($type === 'gerbang') {
-        // Dapatkan ID siswa dari kelas yang diampunya
-        $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-
-        // Riwayat absensi gerbang siswa di kelas
-        $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
-            ->with(['siswa', 'karyawan']);
-
-        // Apply user type filter if specified
-        if ($userType) {
-            if ($userType === 'siswa') {
-                $query->whereHas('siswa');
-            } elseif ($userType === 'karyawan') {
-                $query->whereHas('karyawan');
-            }
-        }
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
-        }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->get();
-
-        // Hitung statistik
-        $totalSiswa = count($siswaIds);
-        $totalAbsensi = $absensi->count();
-        $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
-            ->where('waktu_scan_keluar', '!=', null)->count();
-        $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
-            ->where('waktu_scan_keluar', null)->count();
-
-        // Add counts by user type
-        $totalSiswaAbsensi = $absensi->whereNotNull('siswa_id')->count();
-        $totalKaryawanAbsensi = $absensi->whereNotNull('karyawan_id')->count();
-
-        $data = [
-            'kelas' => $kelas,
-            'absensi' => $absensi,
-            'type' => $type,
-            'period' => $period,
-            'startDate' => $startDate,
-            'endDate' => $endDate,
-            'totalSiswa' => $totalSiswa,
-            'totalAbsensi' => $totalAbsensi,
-            'absensiLengkap' => $absensiLengkap,
-            'belumAbsenKeluar' => $belumAbsenKeluar,
-            'totalSiswaAbsensi' => $totalSiswaAbsensi,
-            'totalKaryawanAbsensi' => $totalKaryawanAbsensi,
-            'userType' => $userType
-        ];
-
-        $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
-
-        // Include user type in filename if specified
-        $filename = 'Absensi_Gerbang_Kelas_' . $kelas->nama_kelas;
-        if ($userType) {
-            $filename .= '_' . ucfirst($userType);
-        }
-        $filename .= '.pdf';
-
-        return $pdf->download($filename);
-    } else {
-        // Code for class attendance remains unchanged
-        // ...
-    }
-}
-
-
     /**
-     * Export PDF untuk Kurikulum
+     * Export PDF untuk walikelas
      */
-    // private function exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId, $userType = null)
-    // {
-    //     $kelas = null;
-    //     if ($kelasId) {
-    //         $kelas = Kelas::find($kelasId);
-    //     }
+    private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate, $userType = null)
+    {
+        $kelasId = $karyawan->kelas_id;
+        $kelas = Kelas::find($kelasId);
 
-    //     if ($type === 'gerbang') {
-    //         // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
-    //         $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+        if (!$kelas) {
+            return redirect()->back()->with('error', 'Data kelas tidak ditemukan.');
+        }
 
-    //         // Apply user type filter if specified
-    //         if ($userType) {
-    //             if ($userType === 'siswa') {
-    //                 $query->whereHas('siswa');
-    //             } elseif ($userType === 'karyawan') {
-    //                 $query->whereHas('karyawan');
-    //             }
-    //         }
+        if ($type === 'gerbang') {
+            // Dapatkan ID siswa dari kelas yang diampunya
+            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
 
-    //         // If class filter is specified and we're looking at students (or all users)
-    //         if ($kelasId && ($userType === 'siswa' || !$userType)) {
-    //             $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-    //             $query->whereIn('related_id', $siswaIds);
-    //         }
+            // Riwayat absensi gerbang siswa di kelas
+            $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
+                ->with(['siswa', 'karyawan']);
 
-    //         if ($startDate && $endDate) {
-    //             $query->whereBetween('tanggal', [$startDate, $endDate]);
-    //         }
+            // Apply user type filter if specified
+            if ($userType) {
+                if ($userType === 'siswa') {
+                    $query->whereHas('siswa');
+                } elseif ($userType === 'karyawan') {
+                    $query->whereHas('karyawan');
+                }
+            }
 
-    //         $absensi = $query->orderBy('tanggal', 'desc')->get();
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
 
-    //         // Calculate statistics
-    //         $totalSiswa = Siswa::when($kelasId, function($query) use($kelasId) {
-    //             return $query->where('kelas_id', $kelasId);
-    //         })->count();
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
 
-    //         $totalAbsensi = $absensi->count();
-    //         $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
-    //             ->where('waktu_scan_keluar', '!=', null)->count();
-    //         $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
-    //             ->where('waktu_scan_keluar', null)->count();
+            // Hitung statistik
+            $totalSiswa = count($siswaIds);
+            $totalAbsensi = $absensi->count();
+            $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', '!=', null)->count();
+            $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', null)->count();
 
-    //         // Add counts by user type
-    //         $totalSiswaAbsensi = $absensi->whereNotNull('siswa_id')->count();
-    //         $totalKaryawanAbsensi = $absensi->whereNotNull('karyawan_id')->count();
+            // Add counts by user type
+            $totalSiswaAbsensi = $absensi->whereNotNull('siswa_id')->count();
+            $totalKaryawanAbsensi = $absensi->whereNotNull('karyawan_id')->count();
 
-    //         $data = [
-    //             'kelas' => $kelas,
-    //             'absensi' => $absensi,
-    //             'type' => $type,
-    //             'period' => $period,
-    //             'startDate' => $startDate,
-    //             'endDate' => $endDate,
-    //             'totalSiswa' => $totalSiswa,
-    //             'totalAbsensi' => $totalAbsensi,
-    //             'absensiLengkap' => $absensiLengkap,
-    //             'belumAbsenKeluar' => $belumAbsenKeluar,
-    //             'totalSiswaAbsensi' => $totalSiswaAbsensi,
-    //             'totalKaryawanAbsensi' => $totalKaryawanAbsensi,
-    //             'userType' => $userType
-    //         ];
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalSiswa' => $totalSiswa,
+                'totalAbsensi' => $totalAbsensi,
+                'absensiLengkap' => $absensiLengkap,
+                'belumAbsenKeluar' => $belumAbsenKeluar,
+                'totalSiswaAbsensi' => $totalSiswaAbsensi,
+                'totalKaryawanAbsensi' => $totalKaryawanAbsensi,
+                'userType' => $userType
+            ];
 
-    //         $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
+            $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
 
-    //         $filename = 'Absensi_Gerbang_';
-    //         if ($userType) {
-    //             $filename .= ucfirst($userType) . '_';
-    //         }
-    //         $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
-    //         $filename .= '.pdf';
+            // Include user type in filename if specified
+            $filename = 'Absensi_Gerbang_Kelas_' . $kelas->nama_kelas;
+            if ($userType) {
+                $filename .= '_' . ucfirst($userType);
+            }
+            $filename .= '.pdf';
 
-    //         return $pdf->download($filename);
-    //     } else {
-    //         // Existing code for classroom attendance report
-    //         // This code should remain unchanged as it's for a different report type
-    //         $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru']);
-
-    //         if ($kelasId) {
-    //             $query->where('kelas_id', $kelasId);
-    //         }
-
-    //         if ($startDate && $endDate) {
-    //             $query->whereBetween('tanggal', [$startDate, $endDate]);
-    //         }
-
-    //         $absensi = $query->orderBy('tanggal', 'desc')->get();
-
-    //         // Hitung statistik
-    //         $totalHadir = $absensi->where('status', 'Hadir')->count();
-    //         $totalIzin = $absensi->where('status', 'Izin')->count();
-    //         $totalSakit = $absensi->where('status', 'Sakit')->count();
-    //         $totalAlpa = $absensi->where('status', 'Alpa')->count();
-
-    //         $data = [
-    //             'kelas' => $kelas,
-    //             'absensi' => $absensi,
-    //             'type' => $type,
-    //             'period' => $period,
-    //             'startDate' => $startDate,
-    //             'endDate' => $endDate,
-    //             'totalHadir' => $totalHadir,
-    //             'totalIzin' => $totalIzin,
-    //             'totalSakit' => $totalSakit,
-    //             'totalAlpa' => $totalAlpa
-    //         ];
-
-    //         $filename = 'Absensi_Siswa_';
-    //         $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
-    //         $filename .= '.pdf';
-
-    //         $pdf = PDF::loadView('absensi.export.export-siswa-kelas', $data);
-    //         return $pdf->download($filename);
-    //     }
-    // }
+            return $pdf->download($filename);
+        } else {
+            // Code for class attendance remains unchanged
+            // ...
+        }
+    }
 
     private function exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId, $userType = null)
-{
-    $kelas = null;
-    if ($kelasId) {
-        $kelas = Kelas::find($kelasId);
-    }
-
-    if ($type === 'gerbang') {
-        // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
-        $query = AbsensiGerbang::with(['siswa', 'karyawan']);
-
-        // Apply user type filter if specified
-        if ($userType) {
-            if ($userType === 'siswa') {
-                $query->whereHas('siswa');
-            } elseif ($userType === 'karyawan') {
-                $query->whereHas('karyawan');
-            }
-        }
-
-        // If class filter is specified and we're looking at students (or all users)
-        if ($kelasId && ($userType === 'siswa' || !$userType)) {
-            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
-            $query->whereIn('related_id', $siswaIds);
-        }
-
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
-        }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->get();
-
-        // Calculate statistics
-        $totalSiswa = Siswa::when($kelasId, function($query) use($kelasId) {
-            return $query->where('kelas_id', $kelasId);
-        })->count();
-
-        $totalAbsensi = $absensi->count();
-        $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
-            ->where('waktu_scan_keluar', '!=', null)->count();
-        $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
-            ->where('waktu_scan_keluar', null)->count();
-
-        // Add counts by user type
-        $totalSiswaAbsensi = $absensi->whereNotNull('siswa_id')->count();
-        $totalKaryawanAbsensi = $absensi->whereNotNull('karyawan_id')->count();
-
-        $data = [
-            'kelas' => $kelas,
-            'absensi' => $absensi,
-            'type' => $type,
-            'period' => $period,
-            'startDate' => $startDate,
-            'endDate' => $endDate,
-            'totalSiswa' => $totalSiswa,
-            'totalAbsensi' => $totalAbsensi,
-            'absensiLengkap' => $absensiLengkap,
-            'belumAbsenKeluar' => $belumAbsenKeluar,
-            'totalSiswaAbsensi' => $totalSiswaAbsensi,
-            'totalKaryawanAbsensi' => $totalKaryawanAbsensi,
-            'userType' => $userType
-        ];
-
-        $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
-
-        $filename = 'Absensi_Gerbang_';
-        if ($userType) {
-            $filename .= ucfirst($userType) . '_';
-        }
-        $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
-        $filename .= '.pdf';
-
-        return $pdf->download($filename);
-    } else {
-        // Existing code for classroom attendance report
-        // This code should remain unchanged as it's for a different report type
-        $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru']);
-
+    {
+        $kelas = null;
         if ($kelasId) {
-            $query->where('kelas_id', $kelasId);
+            $kelas = Kelas::find($kelasId);
         }
 
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        if ($type === 'gerbang') {
+            // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
+            $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+
+            // Apply user type filter if specified
+            if ($userType) {
+                if ($userType === 'siswa') {
+                    $query->whereHas('siswa');
+                } elseif ($userType === 'karyawan') {
+                    $query->whereHas('karyawan');
+                }
+            }
+
+            // If class filter is specified and we're looking at students (or all users)
+            if ($kelasId && ($userType === 'siswa' || !$userType)) {
+                $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+                $query->whereIn('related_id', $siswaIds);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            // Calculate statistics
+            $totalSiswa = Siswa::when($kelasId, function ($query) use ($kelasId) {
+                return $query->where('kelas_id', $kelasId);
+            })->count();
+
+            $totalAbsensi = $absensi->count();
+            $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', '!=', null)->count();
+            $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', null)->count();
+
+            // Add counts by user type
+            $totalSiswaAbsensi = $absensi->whereNotNull('siswa_id')->count();
+            $totalKaryawanAbsensi = $absensi->whereNotNull('karyawan_id')->count();
+
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalSiswa' => $totalSiswa,
+                'totalAbsensi' => $totalAbsensi,
+                'absensiLengkap' => $absensiLengkap,
+                'belumAbsenKeluar' => $belumAbsenKeluar,
+                'totalSiswaAbsensi' => $totalSiswaAbsensi,
+                'totalKaryawanAbsensi' => $totalKaryawanAbsensi,
+                'userType' => $userType
+            ];
+
+            $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
+
+            $filename = 'Absensi_Gerbang_';
+            if ($userType) {
+                $filename .= ucfirst($userType) . '_';
+            }
+            $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
+            $filename .= '.pdf';
+
+            return $pdf->download($filename);
+        } else {
+            // Existing code for classroom attendance report
+            // This code should remain unchanged as it's for a different report type
+            $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru']);
+
+            if ($kelasId) {
+                $query->where('kelas_id', $kelasId);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            // Hitung statistik
+            $totalHadir = $absensi->where('status', 'Hadir')->count();
+            $totalIzin = $absensi->where('status', 'Izin')->count();
+            $totalSakit = $absensi->where('status', 'Sakit')->count();
+            $totalAlpa = $absensi->where('status', 'Alpa')->count();
+
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalHadir' => $totalHadir,
+                'totalIzin' => $totalIzin,
+                'totalSakit' => $totalSakit,
+                'totalAlpa' => $totalAlpa
+            ];
+
+            $filename = 'Absensi_Siswa_';
+            $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
+            $filename .= '.pdf';
+
+            $pdf = PDF::loadView('absensi.export.export-siswa-kelas', $data);
+            return $pdf->download($filename);
         }
-
-        $absensi = $query->orderBy('tanggal', 'desc')->get();
-
-        // Hitung statistik
-        $totalHadir = $absensi->where('status', 'Hadir')->count();
-        $totalIzin = $absensi->where('status', 'Izin')->count();
-        $totalSakit = $absensi->where('status', 'Sakit')->count();
-        $totalAlpa = $absensi->where('status', 'Alpa')->count();
-
-        $data = [
-            'kelas' => $kelas,
-            'absensi' => $absensi,
-            'type' => $type,
-            'period' => $period,
-            'startDate' => $startDate,
-            'endDate' => $endDate,
-            'totalHadir' => $totalHadir,
-            'totalIzin' => $totalIzin,
-            'totalSakit' => $totalSakit,
-            'totalAlpa' => $totalAlpa
-        ];
-
-        $filename = 'Absensi_Siswa_';
-        $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
-        $filename .= '.pdf';
-
-        $pdf = PDF::loadView('absensi.export.export-siswa-kelas', $data);
-        return $pdf->download($filename);
     }
-}
 
     /**
      * Import absensi siswa dari Excel (khusus Guru)
@@ -998,7 +801,7 @@ private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate
         }
 
         // Ambil jadwal mengajar guru
-        $jadwalMengajar = Jadwal::whereHas('jadwalPelajaran', function($q) use ($karyawan) {
+        $jadwalMengajar = Jadwal::whereHas('jadwalPelajaran', function ($q) use ($karyawan) {
             $q->where('guru_id', $karyawan->id);
         })->with(['kelas', 'jadwalPelajaran.mataPelajaran'])->get();
 
@@ -1032,7 +835,7 @@ private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate
 
         // Cek apakah jadwal ini diajar oleh guru yang login
         $isValidJadwal = Jadwal::where('id', $request->jadwal_id)
-            ->whereHas('jadwalPelajaran', function($q) use ($karyawan) {
+            ->whereHas('jadwalPelajaran', function ($q) use ($karyawan) {
                 $q->where('guru_id', $karyawan->id);
             })->exists();
 
@@ -1150,7 +953,7 @@ private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate
      *
      * @return \Illuminate\Http\Response
      */
-  /**
+    /**
      * Generate template file CSV untuk import absensi
      *
      * @return \Illuminate\Http\Response
@@ -1163,7 +966,7 @@ private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate
             'Content-Disposition' => 'attachment; filename="template_absensi_siswa.csv"',
         ];
 
-        $callback = function() {
+        $callback = function () {
             $file = fopen('php://output', 'w');
 
             // Tambahkan header
@@ -1271,149 +1074,149 @@ private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate
     }
 
     /**
- * Menampilkan laporan absensi guru kelas
- */
-public function laporanAbsensiGuruKelas(Request $request)
-{
-    $user = Auth::user();
-    $period = $request->input('period', 'all');
-    $customStart = $request->input('start_date');
-    $customEnd = $request->input('end_date');
-    $kelasId = $request->input('kelas_id');
+     * Menampilkan laporan absensi guru kelas
+     */
+    public function laporanAbsensiGuruKelas(Request $request)
+    {
+        $user = Auth::user();
+        $period = $request->input('period', 'all');
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+        $kelasId = $request->input('kelas_id');
 
-    // Set tanggal berdasarkan periode
-    [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+        // Set tanggal berdasarkan periode
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
 
-    // Cek jabatan pengguna
-    $karyawan = Karyawan::find($user->related_id);
+        // Cek jabatan pengguna
+        $karyawan = Karyawan::find($user->related_id);
 
-    if (!$karyawan) {
-        return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
-    }
-
-    $jabatan = strtolower($karyawan->jabatan ?? '');
-
-    // Untuk Wali Kelas
-    if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
-        $kelasId = $karyawan->kelas_id;
-        $kelas = Kelas::find($kelasId);
-
-        if (!$kelas) {
-            return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+        if (!$karyawan) {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
         }
 
-        // Riwayat absensi guru yang mengajar di kelas ini
-        $query = AbsensiGuruKelas::where('kelas_id', $kelasId)
-            ->with(['karyawan', 'jadwal.jadwalPelajaran.mataPelajaran', 'scanByUser']);
+        $jabatan = strtolower($karyawan->jabatan ?? '');
 
-        if ($startDate && $endDate) {
-            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        // Untuk Wali Kelas
+        if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
+            $kelasId = $karyawan->kelas_id;
+            $kelas = Kelas::find($kelasId);
+
+            if (!$kelas) {
+                return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+            }
+
+            // Riwayat absensi guru yang mengajar di kelas ini
+            $query = AbsensiGuruKelas::where('kelas_id', $kelasId)
+                ->with(['karyawan', 'jadwal.jadwalPelajaran.mataPelajaran', 'scanByUser']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('absensi.laporan-absensi-guru-kelas', compact('absensi', 'period', 'customStart', 'customEnd', 'kelas'));
         }
 
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+        // Untuk Kurikulum
+        if ($jabatan === 'kurikulum') {
+            // Dapatkan semua kelas untuk dropdown filter
+            $kelasList = Kelas::all();
 
-        return view('absensi.laporan-absensi-guru-kelas', compact('absensi', 'period', 'customStart', 'customEnd', 'kelas'));
+            // Filter berdasarkan kelas jika ada
+            $kelas = null;
+            if ($kelasId) {
+                $kelas = Kelas::find($kelasId);
+            }
+
+            // Riwayat absensi guru di semua kelas atau kelas tertentu
+            $query = AbsensiGuruKelas::with(['karyawan', 'jadwal.jadwalPelajaran.mataPelajaran', 'scanByUser']);
+
+            if ($kelasId) {
+                $query->where('kelas_id', $kelasId);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('absensi.laporan-absensi-guru-kelas', compact('absensi', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
+        }
+
+        // Default jika jabatan tidak sesuai
+        return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
     }
 
-    // Untuk Kurikulum
-    if ($jabatan === 'kurikulum') {
-        // Dapatkan semua kelas untuk dropdown filter
-        $kelasList = Kelas::all();
+    /**
+     * Mengekspor laporan absensi guru kelas ke PDF
+     */
+    public function exportAbsensiGuruKelasPdf(Request $request)
+    {
+        $user = Auth::user();
+        $period = $request->input('period', 'all');
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+        $kelasId = $request->input('kelas_id');
 
+        // Validasi input
+        if (!$user || !$period) {
+            return redirect()->back()->with('error', 'Data tidak lengkap.');
+        }
+
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+        // Cek jabatan pengguna
+        $karyawan = Karyawan::find($user->related_id);
+        if (!$karyawan) {
+            return redirect()->back()->with('error', 'Data karyawan tidak ditemukan.');
+        }
+
+        return $this->generateAbsensiGuruKelasPdf($kelasId, $period, $startDate, $endDate);
+    }
+    /**
+     * Generate PDF untuk laporan absensi guru kelas
+     */
+    private function generateAbsensiGuruKelasPdf($kelasId, $period, $startDate, $endDate)
+    {
         // Filter berdasarkan kelas jika ada
         $kelas = null;
         if ($kelasId) {
             $kelas = Kelas::find($kelasId);
+            if (!$kelas) {
+                return redirect()->back()->with('error', 'Data kelas tidak ditemukan.');
+            }
         }
 
-        // Riwayat absensi guru di semua kelas atau kelas tertentu
+        // Query absensi guru
         $query = AbsensiGuruKelas::with(['karyawan', 'jadwal.jadwalPelajaran.mataPelajaran', 'scanByUser']);
-
         if ($kelasId) {
             $query->where('kelas_id', $kelasId);
         }
-
         if ($startDate && $endDate) {
             $query->whereBetween('tanggal', [$startDate, $endDate]);
         }
 
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+        $absensi = $query->orderBy('tanggal', 'desc')->get();
 
-        return view('absensi.laporan-absensi-guru-kelas', compact('absensi', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
-    }
-
-    // Default jika jabatan tidak sesuai
-    return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
-}
-
-/**
- * Mengekspor laporan absensi guru kelas ke PDF
- */
-public function exportAbsensiGuruKelasPdf(Request $request)
-{
-    $user = Auth::user();
-    $period = $request->input('period', 'all');
-    $customStart = $request->input('start_date');
-    $customEnd = $request->input('end_date');
-    $kelasId = $request->input('kelas_id');
-
-    // Validasi input
-    if (!$user || !$period) {
-        return redirect()->back()->with('error', 'Data tidak lengkap.');
-    }
-
-    [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
-
-    // Cek jabatan pengguna
-    $karyawan = Karyawan::find($user->related_id);
-    if (!$karyawan) {
-        return redirect()->back()->with('error', 'Data karyawan tidak ditemukan.');
-    }
-
-    return $this->generateAbsensiGuruKelasPdf($kelasId, $period, $startDate, $endDate);
-}
-/**
- * Generate PDF untuk laporan absensi guru kelas
- */
-private function generateAbsensiGuruKelasPdf($kelasId, $period, $startDate, $endDate)
-{
-    // Filter berdasarkan kelas jika ada
-    $kelas = null;
-    if ($kelasId) {
-        $kelas = Kelas::find($kelasId);
-        if (!$kelas) {
-            return redirect()->back()->with('error', 'Data kelas tidak ditemukan.');
+        // Handle jika tidak ada data absensi
+        if ($absensi->isEmpty()) {
+            return redirect()->back()->with('error', 'Tidak ada data absensi untuk diekspor.');
         }
+
+        // Lanjutkan proses pembuatan PDF
+        $data = [
+            'reportTitle' => "Laporan Absensi Guru Kelas",
+            'kelas' => $kelas,
+            'absensi' => $absensi,
+            'startDate' => $startDate ? Carbon::parse($startDate) : null,
+            'endDate' => $endDate ? Carbon::parse($endDate) : null,
+        ];
+
+        $pdf = PDF::loadView('absensi.export.export-guru-kelas', $data);
+        $filename = "Absensi_Guru_Kelas_" . now()->format('Ymd') . ".pdf";
+
+        return $pdf->download($filename);
     }
-
-    // Query absensi guru
-    $query = AbsensiGuruKelas::with(['karyawan', 'jadwal.jadwalPelajaran.mataPelajaran', 'scanByUser']);
-    if ($kelasId) {
-        $query->where('kelas_id', $kelasId);
-    }
-    if ($startDate && $endDate) {
-        $query->whereBetween('tanggal', [$startDate, $endDate]);
-    }
-
-    $absensi = $query->orderBy('tanggal', 'desc')->get();
-
-    // Handle jika tidak ada data absensi
-    if ($absensi->isEmpty()) {
-        return redirect()->back()->with('error', 'Tidak ada data absensi untuk diekspor.');
-    }
-
-    // Lanjutkan proses pembuatan PDF
-    $data = [
-        'reportTitle' => "Laporan Absensi Guru Kelas",
-        'kelas' => $kelas,
-        'absensi' => $absensi,
-        'startDate' => $startDate ? Carbon::parse($startDate) : null,
-        'endDate' => $endDate ? Carbon::parse($endDate) : null,
-    ];
-
-    $pdf = PDF::loadView('absensi.export.export-guru-kelas', $data);
-    $filename = "Absensi_Guru_Kelas_" . now()->format('Ymd') . ".pdf";
-
-    return $pdf->download($filename);
-}
 }

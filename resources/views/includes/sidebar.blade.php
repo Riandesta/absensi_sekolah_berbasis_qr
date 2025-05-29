@@ -177,13 +177,13 @@
                     <li class="sidebar-title">Karyawan</li>
 
                     <!-- FIXED: Riwayat Kehadiran Saya - simplified active state condition -->
-                    <li
+                    {{-- <li
                         class="sidebar-item {{ request()->routeIs('karyawan.riwayat-absensi') && empty(request('type')) ? 'active' : '' }}">
                         <a href="{{ route('karyawan.riwayat-absensi') }}" class='sidebar-link'>
                             <i class="bi bi-clock-history"></i>
                             <span>Riwayat Kehadiran Saya</span>
                         </a>
-                    </li>
+                    </li> --}}
 
                     @if ($isKurikulum)
                         <!-- Petugas Piket -->
@@ -285,7 +285,7 @@
                             </a>
                         </li>
                     @endif
-                @endif  
+                @endif
 
                 <!-- Kelas Menu Section -->
                 @if ($role === 'kelas')
@@ -302,7 +302,7 @@
 
                 <!-- Menu Siswa -->
                 @if ($role === 'siswa')
-                    <li class="sidebar-title">Menu Siswa</li>
+                    {{-- <li class="sidebar-title">Menu Siswa</li> --}}
 
                     {{-- <!-- Jadwal Pelajaran -->
                     <li class="sidebar-item {{ request()->is('siswa/jadwal-pelajaran*') ? 'active' : '' }}">
@@ -313,7 +313,7 @@
                     </li> --}}
 
                     <!-- Riwayat Absensi -->
-                    <li class="sidebar-item {{ request()->is('siswa/riwayat-absensi*') ? 'active' : '' }}">
+                    {{-- <li class="sidebar-item {{ request()->is('siswa/riwayat-absensi*') ? 'active' : '' }}">
                         <a href="{{ route('siswa.riwayat-absensi-persiswa') }}" class='sidebar-link'>
                             <i class="bi bi-clock-history"></i>
                             <span>Riwayat Absensi</span>
@@ -326,7 +326,7 @@
                             <i class="bi bi-qr-code"></i>
                             <span>Download QR Code</span>
                         </a>
-                    </li>
+                    </li> --}}
                 @endif
             </ul>
         </div>
