@@ -18,6 +18,7 @@ return new class extends Migration
             $table->time('waktu_scan_masuk'); // Waktu saat scan dilakukan
             $table->time('waktu_scan_keluar')->nullable(); // Waktu saat scan dilakukan
             $table->string('status')->default('Tidak Hadir');
+            $table->enum('user_type', ['siswa', 'karyawan'])->default('siswa'); 
             $table->unsignedBigInteger('scanned_by'); // Referensi ke tabel users (siapa yang mencatat absensi)
             $table->unsignedBigInteger('jadwal_id')->nullable();
             $table->timestamps();

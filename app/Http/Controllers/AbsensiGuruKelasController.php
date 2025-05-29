@@ -68,7 +68,7 @@ class AbsensiGuruKelasController extends Controller
         $absensiGuru = $query->with(['karyawan', 'kelas', 'jadwal', 'scanByUser'])->paginate(10);
 
         // Return the view with the data
-        return view('absensi-guru-kelas.index', compact('absensiGuru', 'kelasList'));
+        return view('karyawan.absensi-guru-kelas.index', compact('absensiGuru', 'kelasList'));
     }
 
 
@@ -383,7 +383,7 @@ class AbsensiGuruKelasController extends Controller
         // Get the results
         $absensiGuru = $query->with(['karyawan', 'kelas', 'jadwal', 'scanByUser'])->get();
 
-        
+
         // Return the report view with the data
         return view('absensi-guru-kelas.report', compact('absensiGuru', 'kelasList'));
     }

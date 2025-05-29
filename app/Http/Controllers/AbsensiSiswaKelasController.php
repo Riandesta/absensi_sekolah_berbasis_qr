@@ -7,11 +7,12 @@ use App\Models\User;
 use App\Models\Kelas;
 use App\Models\Siswa;
 use App\Models\Jadwal;
-use Barryvdh\DomPDF\Facade\PDF;
 use Illuminate\Http\Request;
 use App\Models\AbsensiGerbang;
+use Barryvdh\DomPDF\Facade\PDF;
 use App\Models\AbsensiGuruKelas;
 use App\Models\AbsensiSiswaKelas;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 
@@ -65,7 +66,7 @@ public function index()
             ->paginate(10);
     }
 
-    return view('absensi-siswa-kelas.index', compact('absensiSiswaKelas', 'jadwalGuru', 'absensiGuru'));
+    return view('karyawan.absensi-siswa-kelas.index', compact('absensiSiswaKelas', 'jadwalGuru', 'absensiGuru'));
 }
 
     /**
@@ -136,87 +137,110 @@ public function index()
     /**
      * Save attendance data for a class.
      */
-    public function simpanAbsensi(Request $request)
-    {
-        $validated = $request->validate([
-            'jadwal_id' => 'required|exists:jadwal,id',
-            'siswa' => 'required|array',
-            'siswa.*.id' => 'required|exists:siswa,id',
-            'siswa.*.status' => 'required|in:Hadir,Izin,Sakit,Alpa',
-        ]);
+  public function simpanAbsensi(Request $request)
+{
+    // Validate the request
+    $validated = $request->validate([
+        'jadwal_id' => 'required|exists:jadwal,id',
+        'siswa' => 'required|array',
+        'siswa.*.id' => 'required|exists:siswa,id',
+        'siswa.*.status' => 'required|in:Hadir,Izin,Sakit,Alpa',
+    ]);
 
-        $tanggalHariIni = Carbon::now()->toDateString();
-        $jadwalId = $validated['jadwal_id'];
-        $savedCount = 0;
-        $errorMessages = [];
 
-        try {
-            // Get the jadwal (schedule) to access class_id
-            $jadwal = Jadwal::findOrFail($jadwalId);
+    $tanggalHariIni = Carbon::now()->toDateString();
+    $jadwalId = $validated['jadwal_id'];
+    $savedCount = 0;
+    $errorMessages = [];
 
-            // Get all gate attendance records for today to avoid repeated queries
-            $gateAttendances = AbsensiGerbang::where('tanggal', $tanggalHariIni)
-                ->whereNotNull('waktu_scan_masuk')
-                ->whereIn('related_id', array_column($validated['siswa'], 'id'))
-                ->get()
-                ->keyBy('related_id');
+    try {
+        // Enable query log to capture the query being executed
+        DB::enableQueryLog();
 
-            foreach ($validated['siswa'] as $siswaData) {
-                $siswaId = $siswaData['id'];
-                $status = $siswaData['status'];
-                $absenGerbangId = null;
+        // Get the jadwal (schedule) to access class_id
+        $jadwal = Jadwal::findOrFail($jadwalId);
 
-                if (empty($status)) {
-                    continue;
-                }
+        // Get all gate attendance records for today to avoid repeated queries
+        $gateAttendances = AbsensiGerbang::where('tanggal', $tanggalHariIni)
+            ->whereNotNull('waktu_scan_masuk')
+            ->whereIn('related_id', array_column($validated['siswa'], 'id'))
+            ->get()
+            ->keyBy('related_id');
 
-                // For students marked as 'Hadir', check gate attendance
-                if ($status === 'Hadir') {
-                    if (isset($gateAttendances[$siswaId])) {
-                        $absenGerbangId = $gateAttendances[$siswaId]->id;
-                    }
-                    // For now, we'll allow setting "Hadir" even without gate attendance
-                }
+        // Loop through each student to save their attendance
+        foreach ($validated['siswa'] as $siswaData) {
+            $siswaId = $siswaData['id'];
+            $status = $siswaData['status'];
+            $absenGerbangId = null;
 
-                try {
-                    // Create or update the attendance record
-                    AbsensiSiswaKelas::updateOrCreate(
-                        [
-                            'siswa_id' => $siswaId,
-                            'jadwal_id' => $jadwalId,
-                            'tanggal' => $tanggalHariIni,
-                        ],
-                        [
-                            'kelas_id' => $jadwal->kelas_id, // Store kelas_id directly
-                            'status' => $status,
-                            'input_by' => Auth::id(),
-                            'absen_gerbang_id' => $absenGerbangId,
-                        ]
-                    );
-                    $savedCount++;
-                } catch (\Exception $e) {
-                    Log::error("Failed to save attendance for student $siswaId: " . $e->getMessage());
-                    $errorMessages[] = "Gagal menyimpan absensi untuk siswa ID $siswaId: " . $e->getMessage();
-                }
+            if (empty($status)) {
+                continue;
             }
 
-            if ($savedCount > 0) {
-                $message = "Berhasil menyimpan $savedCount data absensi.";
-                if (!empty($errorMessages)) {
-                    $message .= " Beberapa data tidak tersimpan.";
+            // For students marked as 'Hadir', check gate attendance
+            if ($status === 'Hadir') {
+                if (isset($gateAttendances[$siswaId])) {
+                    $absenGerbangId = $gateAttendances[$siswaId]->id;
                 }
-                return redirect()->route('absensi-siswa-kelas.index')
-                    ->with('success', $message);
-            } else {
-                return redirect()->route('absensi-siswa-kelas.index')
-                    ->with('error', 'Tidak ada data absensi yang tersimpan. ' . implode(" ", $errorMessages));
+                // For now, we'll allow setting "Hadir" even without gate attendance
             }
-        } catch (\Exception $e) {
-            Log::error('Error saving attendance: ' . $e->getMessage());
-            return redirect()->route('absensi-siswa-kelas.index')
-                ->with('error', 'Terjadi kesalahan saat menyimpan data absensi: ' . $e->getMessage());
+
+            try {
+                // Log the data being saved
+                Log::info('Saving attendance', [
+                    'siswa_id' => $siswaId,
+                    'jadwal_id' => $jadwalId,
+                    'status' => $status,
+                    'kelas_id' => $jadwal->kelas_id,
+                    'absen_gerbang_id' => $absenGerbangId,
+                ]);
+
+                // Create or update the attendance record
+                AbsensiSiswaKelas::updateOrCreate(
+                    [
+                        'siswa_id' => $siswaId,
+                        'jadwal_id' => $jadwalId,
+                        'tanggal' => $tanggalHariIni,
+                    ],
+                    [
+                        'kelas_id' => $jadwal->kelas_id, // Store kelas_id directly
+                        'status' => $status,
+                        'input_by' => Auth::id(),
+                        'absen_gerbang_id' => $absenGerbangId,
+                    ]
+                );
+                $savedCount++;
+            } catch (\Exception $e) {
+                // Log any errors when saving attendance
+                Log::error("Failed to save attendance for student $siswaId: " . $e->getMessage());
+                $errorMessages[] = "Gagal menyimpan absensi untuk siswa ID $siswaId: " . $e->getMessage();
+            }
         }
+
+        // Log the executed query
+        Log::info('Executed Query', DB::getQueryLog());
+
+        // If attendance was saved successfully
+        if ($savedCount > 0) {
+            $message = "Berhasil menyimpan $savedCount data absensi.";
+            if (!empty($errorMessages)) {
+                $message .= " Beberapa data tidak tersimpan.";
+            }
+            return redirect()->route('karyawan.absensi-siswa-kelas.index')
+                ->with('success', $message);
+        } else {
+            return redirect()->route('karyawan.absensi-siswa-kelas.index')
+                ->with('error', 'Tidak ada data absensi yang tersimpan. ' . implode(" ", $errorMessages));
+        }
+    } catch (\Exception $e) {
+        // Log any errors that happen during the process
+        Log::error('Error saving attendance: ' . $e->getMessage());
+        return redirect()->route('karyawan.absensi-siswa-kelas.index')
+            ->with('error', 'Terjadi kesalahan saat menyimpan data absensi: ' . $e->getMessage());
     }
+}
+
+
 
     /**
      * Display the specified resource.
@@ -233,7 +257,7 @@ public function index()
     {
         try {
             $absensiSiswaKelas->delete();
-            return redirect()->route('absensi-siswa-kelas.index')
+            return redirect()->route('karyawan.absensi-siswa-kelas.index')
                 ->with('success', 'Data absensi berhasil dihapus.');
         } catch (\Exception $e) {
             return back()->with('error', 'Terjadi kesalahan saat menghapus data absensi: ' . $e->getMessage());

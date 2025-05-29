@@ -3,7 +3,7 @@
     @section('breadcrumb')
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{{ route(Auth::user()->role .'.dashboard') }}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="{{ route(Auth::user()->role .'.absensi-siswa-kelas.index') }}">Absensi Siswa Kelas</a></li>
+            <li class="breadcrumb-item"><a href="{{ route(Auth::user()->role .'absensi-siswa-kelas.index') }}">Absensi Siswa Kelas</a></li>
             <li class="breadcrumb-item active">{{ $jadwal->kelas->nama_kelas }}</li>
         </ol>
     @endsection
@@ -167,7 +167,7 @@
                             <button type="submit" class="btn btn-primary px-4 me-3">
                                 <i class="bi bi-save me-2"></i> Simpan Absensi
                             </button>
-                            <a href="{{ route(Auth::user()->role .'.absensi-siswa-kelas.index') }}" class="btn btn-secondary px-4">
+                            <a href="{{ route(Auth::user()->role .'absensi-siswa-kelas.index') }}" class="btn btn-secondary px-4">
                                 <i class="bi bi-arrow-left me-2"></i> Kembali
                             </a>
                         </div>

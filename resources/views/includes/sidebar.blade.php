@@ -201,7 +201,7 @@
                                 in_array(strtolower(Auth::user()->karyawan->jabatan), ['guru', 'wali kelas', 'kurikulum']))
                             <li
                                 class="sidebar-item {{ request()->is('karyawan/absensi-siswa-kelas*') ? 'active' : '' }}">
-                                <a href="{{ route($role . '.absensi-siswa-kelas.index') }}" class='sidebar-link'>
+                                <a href="{{ route('karyawan.absensi-siswa-kelas.index') }}" class='sidebar-link'>
                                     <i class="bi bi-people"></i>
                                     <span>Absensi Siswa</span>
                                 </a>
@@ -285,7 +285,7 @@
                             </a>
                         </li>
                     @endif
-                @endif  
+                @endif
 
                 <!-- Kelas Menu Section -->
                 @if ($role === 'kelas')
