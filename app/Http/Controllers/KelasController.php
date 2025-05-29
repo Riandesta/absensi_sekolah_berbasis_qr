@@ -2,14 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\Kelas;
 use App\Models\Jurusan;
-use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class KelasController extends Controller
 {
+
+    public function dashboard()
+    {
+        $user = Auth::user();
+        $kelas = null;
+
+        if ($user->role === 'kelas' && $user->related_id) {
+            $kelas = kelas::find($user->related_id);
+        }
+
+        return view('kelas.dashboard', compact('kelas'));
+    }
     // Menampilkan daftar kelas
     public function index()
     {

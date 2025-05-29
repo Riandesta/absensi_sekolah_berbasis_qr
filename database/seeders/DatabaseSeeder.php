@@ -3,15 +3,29 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
     /**
      * Seed the application's database.
+     *
+     * @return void
      */
-    public function run(): void
+    public function run()
     {
-        // Panggil AdminSeeder
-        $this->call(AdminSeeder::class);
+        $this->call([
+            JurusanSeeder::class,
+            TahunAjaranSeeder::class,
+            UserSeeder::class,
+            KelasSeeder::class,
+            MataPelajaranSeeder::class,
+            SiswaSeeder::class,
+            KaryawanSeeder::class,
+            AbsensiGerbangSeeder::class,
+            AdminSeeder::class
+
+        ]);
     }
 }

@@ -1,5 +1,3 @@
-<!-- In resources/views/karyawan/index.blade.php - update the QR code download button -->
-
 @extends('templates')
 @section('header', 'Data Karyawan')
 
@@ -146,7 +144,7 @@
 
                 <!-- Pagination -->
                 <div class="d-flex justify-content-center mt-4">
-                    {{ $karyawan->links() }}
+                    {{ $karyawan->links('pagination::bootstrap-5') }}
                 </div>
             </div>
         </div>

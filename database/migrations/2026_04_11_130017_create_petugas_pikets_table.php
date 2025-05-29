@@ -15,7 +15,6 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('karyawan_id'); // Referensi ke tabel karyawan
             $table->date('tanggal'); // Tanggal petugas piket bertugas
-            $table->enum('shift', ['Pagi', 'Siang', 'Sore']); // Shift petugas piket
             $table->text('keterangan')->nullable(); // Catatan tambahan (opsional)
             $table->timestamps();
 

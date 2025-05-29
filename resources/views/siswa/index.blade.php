@@ -66,7 +66,7 @@
                                                 </button>
                                                 <ul class="dropdown-menu">
                                                     <li>
-                                                        <a href="{{ route('siswa.download-qrcode', $item->id) }}" class="dropdown-item">
+                                                        <a href="{{ route(Auth::user()->role . '.siswa.download-qrcode', $item->id) }}" class="dropdown-item">
                                                             <i class="bi bi-card-heading"></i> Unduh ID Card
                                                         </a>
                                                     </li>
@@ -121,6 +121,11 @@
                             @endforelse
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="d-flex justify-content-center mt-4">
+                    {{ $siswa->links('pagination::bootstrap-5') }}
                 </div>
             </div>
         </div>

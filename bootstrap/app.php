@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'auth' => \Illuminate\Auth\Middleware\Authenticate::class,
             'role' => \App\Http\Middleware\CheckRole::class,
+            'hasAllRoles' => \App\Http\Middleware\HasAllRoles::class, // ← Tambahkan ini
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

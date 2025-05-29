@@ -45,16 +45,22 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        // Redirect berdasarkan role
+        // Redirect berdasarkan role dengan path yang benar
         return match ($user->role) {
-            'admin' => redirect()->route('admin.dashboard'),
-            'siswa' => redirect()->route('siswa.dashboard'),
-            'guru' => redirect()->route('guru.dashboard'),
-            'karyawan' => redirect()->route('karyawan.dashboard'),
-            'kurikulum' => redirect()->route('kurikulum.dashboard'),
-            'walikelas' => redirect()->route('walikelas.dashboard'),
-            default => redirect('/'),
+            'admin' => redirect()->intended('/admin/dashboard'),
+            'siswa' => redirect()->intended('/siswa/dashboard'),
+            'karyawan' => redirect()->intended('/karyawan/dashboard'),
+            'kurikulum' => redirect()->intended('/kurikulum/dashboard'),
+            'walikelas' => redirect()->intended('/walikelas/dashboard'),
+            'kelas' => redirect()->intended('/kelas/dashboard'),
+            default => $this->logoutWithError()
         };
+    }
+
+    protected function logoutWithError()
+    {
+        Auth::logout();
+        return redirect()->route('login')->with('error', 'Role tidak dikenali.');
     }
 
     public function logout(Request $request)

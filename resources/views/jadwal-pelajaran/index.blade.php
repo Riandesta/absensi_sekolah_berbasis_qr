@@ -1,35 +1,38 @@
 @extends('templates')
+
 @section('header', 'Jadwal Pelajaran')
+
 @section('content')
 <div class="container">
     <div class="row">
         <div class="col-md-12">
-            <div class="card shadow-sm">
-                <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-                    <h5 class="mb-0">Data Jadwal Pelajaran</h5>
-                    <a href="{{ route('jadwal-pelajaran.create') }}" class="btn btn-light">
-                        <i class="bi bi-plus-circle me-2"></i>Tambah Jadwal
-                    </a>
-                </div>
-                <div class="card-body">
-                    @if(session('success'))
-                        <div class="alert alert-success">{{ session('success') }}</div>
-                    @endif
+            @if(session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
 
-                    <form action="{{ route('jadwal-pelajaran.index') }}" method="GET" class="d-flex mb-3">
-                        <input type="text" name="search" class="form-control me-2" placeholder="Cari jadwal..."
-                               value="{{ request('search') }}">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">Data Jadwal Pelajaran</h3>
+                    <a href="{{ route(Auth::user()->role .'.jadwal-pelajaran.create') }}" class="btn btn-primary">Tambah Jadwal</a>
+                </div>
+
+                <div class="card-body">
+
+                    {{-- Uncomment ini jika ingin fitur pencarian --}}
+                    {{--
+                    <form action="{{ route('jadwal-pelajaran.index') }}" method="GET" class="form-inline mb-3">
+                        <input type="text" name="search" class="form-control mr-2" placeholder="Cari jadwal..." value="{{ request('search') }}">
                         <button type="submit" class="btn btn-primary">Cari</button>
                     </form>
+                    --}}
 
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light">
+                    <table class="table table-bordered">
+                        <thead class="thead-light">
                             <tr>
                                 <th>No</th>
                                 <th>Guru</th>
                                 <th>Mata Pelajaran</th>
                                 <th>Tahun Ajaran</th>
-                                {{-- <th>Slot Jadwal</th> --}}
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -37,94 +40,32 @@
                             @forelse ($jadwalPelajaran as $jadwal)
                                 <tr>
                                     <td>{{ $loop->iteration + ($jadwalPelajaran->currentPage() - 1) * $jadwalPelajaran->perPage() }}</td>
-                                    <td>Guru</td>
-                                    {{-- <td>{{ $jadwal->guru->nama_lengkap ?? '-' }}</td> --}}
-                                    <td>{{ $jadwal->mataPelajaran->nama_mapel }}</td>
-                                    <td>{{ $jadwal->tahunAjaran->tahun_formatted }}</td>
-                                    {{-- <td> --}}
-                                        {{-- @foreach ($jadwal->jadwal as $slot)
-                                            <span class="badge bg-secondary me-1">
-                                                {{ $slot->hari }} ({{ $slot->jam_mulai }} - {{ $slot->jam_selesai }})
-                                            </span>
-                                        @endforeach --}}
-                                    {{-- </td> --}}
-                                    <td class="text-nowrap">
-                                        <!-- Tombol Detail -->
-                                        <button class="btn btn-sm btn-info text-white me-1" data-bs-toggle="modal"
-                                            data-bs-target="#detailJadwalModal{{ $jadwal->id }}">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-
-                                        <!-- Tombol Edit -->
-                                        <a href="{{ route('jadwal-pelajaran.edit', $jadwal->id) }}"
-                                           class="btn btn-sm btn-warning me-1">
-                                            <i class="bi bi-pencil-square"></i>
-                                        </a>
-
-                                        <!-- Tombol Hapus -->
-                                        <form action="{{ route('jadwal-pelajaran.destroy', $jadwal->id) }}"
-                                              method="POST" style="display:inline;">
+                                    <td>{{ optional($jadwal->guru)->nama_lengkap ?? 'Tidak ada guru' }}</td>
+                                    <td>{{ optional($jadwal->mataPelajaran)->nama_mapel ?? 'Tidak ada mata pelajaran' }}</td>
+                                    <td>{{ optional($jadwal->tahunAjaran)->tahun_formatted ?? 'Tidak ada tahun ajaran' }}</td>
+                                    <td>
+                                        <a href="{{ route(Auth::user()->role .'.jadwal-pelajaran.edit', $jadwal->id) }}" class="btn btn-warning btn-sm">Edit</a>
+                                        <form action="{{ route(Auth::user()->role .'.jadwal-pelajaran.destroy', $jadwal->id) }}" method="POST" style="display:inline;">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-danger"
-                                                    onclick="return confirm('Yakin ingin menghapus seluruh jadwal ini?')">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus jadwal ini?')">Hapus</button>
                                         </form>
                                     </td>
                                 </tr>
-
-                                <!-- Modal Detail Jadwal -->
-                                <div class="modal fade" id="detailJadwalModal{{ $jadwal->id }}" tabindex="-1"
-                                     aria-labelledby="detailModalLabel{{ $jadwal->id }}" aria-hidden="true">
-                                    <div class="modal-dialog modal-lg">
-                                        <div class="modal-content">
-                                            <div class="modal-header bg-primary text-white">
-                                                <h5 class="modal-title" id="detailModalLabel{{ $jadwal->id }}">Detail Jadwal Pelajaran</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                                        aria-label="Close"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <p><strong>Mata Pelajaran:</strong> {{ $jadwal->mataPelajaran->nama_mapel }}</p>
-                                                <p><strong>Penanggung Jawab:</strong> {{ $jadwal->guru->nama_lengkap ?? '-' }}</p>
-
-                                                @php
-                                                    $groupedByHari = $jadwal->jadwal->groupBy('hari');
-                                                @endphp
-
-                                                @foreach ($groupedByHari as $hari => $slots)
-                                                    <div class="mb-3">
-                                                        <p><strong>Hari:</strong> {{ $hari }}</p>
-                                                        <p><strong>Jadwal Pelajaran:</strong></p>
-                                                        <ul class="list-group">
-                                                            @foreach ($slots as $slot)
-                                                                <li class="list-group-item">
-                                                                    {{ $slot->jam_mulai }} - {{ $slot->jam_selesai }}
-                                                                    ({{ $slot->kelas->nama_kelas ?? 'Kelas tidak tersedia' }})
-                                                                </li>
-                                                            @endforeach
-                                                        </ul>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary"
-                                                        data-bs-dismiss="modal">Tutup</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="text-center">Tidak ada data jadwal pelajaran.</td>
+                                    <td colspan="5" class="text-center">Tidak ada data jadwal pelajaran.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
 
-                    <div class="d-flex justify-content-center">
-                        {{ $jadwalPelajaran->withQueryString()->links('pagination::bootstrap-5') }}
+                    <div class="d-flex justify-content-center mt-3">
+                        <nav>
+                            {{ $jadwalPelajaran->links('pagination::bootstrap-4') }}
+                        </nav>
                     </div>
+
                 </div>
             </div>
         </div>

@@ -1,0 +1,1023 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Carbon\Carbon;
+use App\Models\User;
+use App\Models\Kelas;
+use App\Models\Siswa;
+use App\Models\Jadwal;
+use App\Models\Karyawan;
+use Barryvdh\DomPDF\Facade\PDF;
+use Illuminate\Http\Request;
+use App\Models\AbsensiGerbang;
+use App\Models\AbsensiGuruKelas;
+use App\Models\AbsensiSiswaKelas;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
+use App\Imports\AbsensiSiswaImport;
+
+class AbsensiRiwayatController extends Controller
+{
+    /**
+     * Menampilkan riwayat absensi berdasarkan jabatan pengguna
+     */
+    public function index(Request $request)
+    {
+        $user = Auth::user();
+        $type = $request->input('type', 'gerbang'); // Default ke gerbang
+        $period = $request->input('period', 'all'); // Default ke semua
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+        $kelasId = $request->input('kelas_id');
+
+        // Set tanggal berdasarkan periode
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+        // Cek jabatan pengguna
+        if ($user->role === 'karyawan') {
+            $karyawan = Karyawan::find($user->related_id);
+            $jabatan = strtolower($karyawan->jabatan ?? '');
+
+            // Untuk Guru
+            if ($jabatan === 'guru') {
+                return $this->getGuruAbsensi($user, $type, $period, $startDate, $endDate, $customStart, $customEnd);
+            }
+
+            // Untuk Wali Kelas
+            if ($jabatan === 'wali kelas' && !empty($karyawan->kelas_id)) {
+                return $this->getWaliKelasAbsensiData($user, $karyawan, $type, $period, $startDate, $endDate, $customStart, $customEnd);
+            }
+
+            // Untuk Kurikulum
+            if ($jabatan === 'kurikulum') {
+                return $this->getKurikulumAbsensi($user, $type, $period, $startDate, $endDate, $customStart, $customEnd, $kelasId);
+            }
+        }
+
+        // Default jika jabatan tidak dikenali
+        return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+    /**
+     * Mendapatkan data absensi untuk Guru
+     */
+    private function getGuruAbsensi($user, $type, $period, $startDate, $endDate, $customStart, $customEnd)
+    {
+        $karyawanId = $user->related_id;
+
+        if ($type === 'gerbang') {
+            // Riwayat absensi gerbang guru
+            $query = AbsensiGerbang::where('related_id', $karyawanId);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('absensi.riwayat-absensi', compact('absensi', 'type', 'period', 'customStart', 'customEnd'));
+        } else {
+            // Riwayat absensi mengajar guru
+            $query = AbsensiGuruKelas::where('karyawan_id', $karyawanId)
+                ->with(['jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.kelas', 'scanByUser']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('absensi.riwayat-absensi', compact('absensi', 'type', 'period', 'customStart', 'customEnd'));
+        }
+    }
+
+
+    /**
+     * Mendapatkan data absensi untuk Wali Kelas
+     */
+   /**
+ * Menangani rute laporan-absensi-gerbang
+ * Public method untuk memastikan dapat diakses melalui route
+ */
+// In AbsensiRiwayatController.php
+// Modify the laporanAbsensiGerbang method:
+
+    public function laporanAbsensiGerbang(Request $request)
+    {
+        $user = Auth::user();
+        $type = 'gerbang'; // Force type to be gerbang
+        $period = $request->input('period', 'all');
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+        $kelasId = $request->input('kelas_id');
+
+        // Set tanggal berdasarkan periode
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+        // Cek jabatan pengguna
+        $karyawan = Karyawan::find($user->related_id);
+
+        if (!$karyawan) {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+        }
+
+        $jabatan = strtolower($karyawan->jabatan ?? '');
+
+        // Untuk Wali Kelas
+        if ($jabatan === 'wali kelas' && !empty($karyawan->kelas_id)) {
+            $kelasId = $karyawan->kelas_id;
+            $kelas = Kelas::find($kelasId);
+
+            if (!$kelas) {
+                return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+            }
+
+            // Dapatkan ID siswa dari kelas yang diampunya
+            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+
+            // Riwayat absensi gerbang siswa di kelas
+            $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
+                ->with(['siswa']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
+        }
+
+        // Untuk Kurikulum
+        if ($jabatan === 'kurikulum') {
+            // Dapatkan semua kelas untuk dropdown filter
+            $kelasList = Kelas::all();
+
+            // Filter berdasarkan kelas jika ada
+            $kelas = null;
+            if ($kelasId) {
+                $kelas = Kelas::find($kelasId);
+            }
+
+            // FIXED: Change whereNotNull('related_id') to a condition that checks if the record belongs to a student
+            // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
+            $query = AbsensiGerbang::with(['siswa']);
+
+            // Use a subquery to get only student records
+            $studentIds = Siswa::pluck('id')->toArray();
+            $query->whereIn('related_id', $studentIds);
+
+            if ($kelasId) {
+                $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+                $query->whereIn('related_id', $siswaIds);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+            return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
+        }
+
+        // Default jika jabatan tidak sesuai
+        return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
+    }
+
+  /**
+ * Menangani rute laporan-absensi-siswa
+ */
+public function laporanAbsensiSiswa(Request $request)
+{
+    $user = Auth::user();
+    $type = 'kelas'; // Force type to be kelas
+    $period = $request->input('period', 'all');
+    $customStart = $request->input('start_date');
+    $customEnd = $request->input('end_date');
+    $kelasId = $request->input('kelas_id');
+
+    // Set tanggal berdasarkan periode
+    [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+    // Cek jabatan pengguna
+    $karyawan = Karyawan::find($user->related_id);
+
+    if (!$karyawan) {
+        return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+    }
+
+    $jabatan = strtolower($karyawan->jabatan ?? '');
+
+    // Untuk Wali Kelas
+    if ($jabatan === 'wali kelas' && !empty($karyawan->kelas_id)) {
+        $kelasId = $karyawan->kelas_id;
+        $kelas = Kelas::find($kelasId);
+
+        if (!$kelas) {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+        }
+
+        // Riwayat absensi siswa di kelas
+        // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
+        $query = AbsensiSiswaKelas::whereHas('jadwal', function($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            })
+            ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        }
+
+        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
+    }
+
+    // Untuk Kurikulum
+    if ($jabatan === 'kurikulum') {
+        // Dapatkan semua kelas untuk dropdown filter
+        $kelasList = Kelas::all();
+
+        // Filter berdasarkan kelas jika ada
+        $kelas = null;
+        if ($kelasId) {
+            $kelas = Kelas::find($kelasId);
+        }
+
+        // Riwayat absensi siswa di kelas
+        $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
+
+        if ($kelasId) {
+            // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
+            $query->whereHas('jadwal', function($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            });
+        }
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        }
+
+        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
+    }
+
+    // Default jika jabatan tidak sesuai
+    return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
+}
+
+    /**
+     * Private method to get Wali Kelas Absensi data
+     */
+    public function getWaliKelasAbsensi(Request $request = null, $type = 'gerbang')
+    {
+        // If $request is null, get the current request
+        if ($request === null) {
+            $request = request();
+        }
+
+        $user = Auth::user();
+        $period = $request->input('period', 'all');
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+
+        // Set tanggal berdasarkan periode
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+        $karyawan = Karyawan::find($user->related_id);
+
+        if (!$karyawan || strtolower($karyawan->jabatan) !== 'wali kelas') {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
+        }
+
+        return $this->getWaliKelasAbsensiData($user, $karyawan, $type, $period, $startDate, $endDate, $customStart, $customEnd);
+    }
+
+    /**
+     * Private method to get Wali Kelas Absensi data
+     */
+   /**
+ * Private method to get Wali Kelas Absensi data
+ */
+private function getWaliKelasAbsensiData($user, $karyawan, $type, $period, $startDate, $endDate, $customStart, $customEnd)
+{
+    $kelasId = $karyawan->kelas_id;
+    $kelas = Kelas::find($kelasId);
+
+    if (!$kelas) {
+        return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+    }
+
+    if ($type === 'gerbang') {
+        // Dapatkan ID siswa dari kelas yang diampunya
+        $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+
+        // Riwayat absensi gerbang siswa di kelas
+        $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
+            ->with(['siswa']);
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        }
+
+        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+        return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
+    } else {
+        // Riwayat absensi siswa di kelas
+        // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
+        $query = AbsensiSiswaKelas::whereHas('jadwal', function($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            })
+            ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        }
+
+        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas'));
+    }
+}
+
+
+    /**
+     * Mendapatkan data absensi untuk Kurikulum
+     */
+   /**
+ * Mendapatkan data absensi untuk Kurikulum
+ */
+private function getKurikulumAbsensi($user, $type, $period, $startDate, $endDate, $customStart, $customEnd, $kelasId)
+{
+    // Dapatkan semua kelas untuk dropdown filter
+    $kelasList = Kelas::all();
+
+    // Filter berdasarkan kelas jika ada
+    $kelas = null;
+    if ($kelasId) {
+        $kelas = Kelas::find($kelasId);
+    }
+
+    if ($type === 'gerbang') {
+        // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
+        $query = AbsensiGerbang::with(['siswa']);
+
+        // Get only student records
+        $studentIds = Siswa::pluck('id')->toArray();
+        $query->whereIn('related_id', $studentIds);
+
+        if ($kelasId) {
+            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+            $query->whereIn('related_id', $siswaIds);
+        }
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        }
+
+        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+        return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
+    } else {
+        // Riwayat absensi siswa di kelas
+        $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru', 'inputBy']);
+
+        if ($kelasId) {
+            // FIXED: Use whereHas to filter by the related Jadwal's kelas_id
+            $query->whereHas('jadwal', function($q) use ($kelasId) {
+                $q->where('kelas_id', $kelasId);
+            });
+        }
+
+        if ($startDate && $endDate) {
+            $query->whereBetween('tanggal', [$startDate, $endDate]);
+        }
+
+        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+        return view('absensi.laporan-absensi-siswa', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas'));
+    }
+}
+
+    /**
+     * Mendapatkan rentang tanggal berdasarkan periode
+     */
+    private function getDateRange($period, $customStart, $customEnd)
+    {
+        $startDate = null;
+        $endDate = null;
+
+        switch ($period) {
+            case 'daily':
+                $startDate = now()->startOfDay();
+                $endDate = now()->endOfDay();
+                break;
+            case 'weekly':
+                $startDate = now()->startOfWeek();
+                $endDate = now()->endOfWeek();
+                break;
+            case 'monthly':
+                $startDate = now()->startOfMonth();
+                $endDate = now()->endOfMonth();
+                break;
+            case 'semester':
+                // Asumsi semester 1: Juli-Desember, semester 2: Januari-Juni
+                if (now()->month >= 7) {
+                    $startDate = now()->setMonth(7)->setDay(1)->startOfDay();
+                    $endDate = now()->setMonth(12)->endOfMonth()->endOfDay();
+                } else {
+                    $startDate = now()->setMonth(1)->setDay(1)->startOfDay();
+                    $endDate = now()->setMonth(6)->endOfMonth()->endOfDay();
+                }
+                break;
+            case 'yearly':
+                $startDate = now()->startOfYear();
+                $endDate = now()->endOfYear();
+                break;
+            case 'custom':
+                if ($customStart && $customEnd) {
+                    $startDate = Carbon::parse($customStart)->startOfDay();
+                    $endDate = Carbon::parse($customEnd)->endOfDay();
+                }
+                break;
+        }
+
+        return [$startDate, $endDate];
+    }
+
+    /**
+     * Menghasilkan laporan PDF absensi
+     */
+    public function exportPdf(Request $request)
+    {
+        $user = Auth::user();
+        $type = $request->input('type', 'gerbang');
+        $period = $request->input('period', 'all');
+        $customStart = $request->input('start_date');
+        $customEnd = $request->input('end_date');
+        $kelasId = $request->input('kelas_id');
+
+        // Set tanggal berdasarkan periode
+        [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+        // Cek jabatan pengguna
+        if ($user->role === 'karyawan') {
+            $karyawan = Karyawan::find($user->related_id);
+            $jabatan = strtolower($karyawan->jabatan ?? '');
+
+            // Untuk Guru - hanya bisa export data dirinya
+            if ($jabatan === 'guru') {
+                return $this->exportGuruAbsensiPdf($user, $type, $period, $startDate, $endDate);
+            }
+
+            // Untuk Wali Kelas - bisa export data kelasnya
+            if ($jabatan === 'wali kelas' && !empty($karyawan->kelas_id)) {
+                return $this->exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate);
+            }
+
+            // Untuk Kurikulum - bisa export data semua kelas
+            if ($jabatan === 'kurikulum') {
+                return $this->exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId);
+            }
+        }
+
+        return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk mengekspor data ini.');
+    }
+
+    /**
+     * Export PDF untuk Guru
+     */
+    private function exportGuruAbsensiPdf($user, $type, $period, $startDate, $endDate)
+    {
+        $karyawanId = $user->related_id;
+        $karyawan = Karyawan::find($karyawanId);
+
+        if (!$karyawan) {
+            return redirect()->back()->with('error', 'Data karyawan tidak ditemukan.');
+        }
+
+        if ($type === 'gerbang') {
+            // Riwayat absensi gerbang guru
+            $query = AbsensiGerbang::where('related_id', $karyawanId);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            $data = [
+                'karyawan' => $karyawan,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate
+            ];
+
+            $pdf = PDF::loadView('absensi.export.export-gerbang-guru', $data);
+            return $pdf->download('Absensi_Gerbang_' . $karyawan->nama_lengkap . '.pdf');
+        } else {
+            // Riwayat absensi mengajar guru
+            $query = AbsensiGuruKelas::where('karyawan_id', $karyawanId)
+                ->with(['jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.kelas']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            $data = [
+                'karyawan' => $karyawan,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate
+            ];
+
+            $pdf = PDF::loadView('absensi.export.export-mengajar-guru', $data);
+            return $pdf->download('Absensi_Mengajar_' . $karyawan->nama_lengkap . '.pdf');
+        }
+    }
+
+    /**
+     * Export PDF untuk Wali Kelas
+     */
+    private function exportWaliKelasAbsensiPdf($karyawan, $type, $period, $startDate, $endDate)
+    {
+        $kelasId = $karyawan->kelas_id;
+        $kelas = Kelas::find($kelasId);
+
+        if (!$kelas) {
+            return redirect()->back()->with('error', 'Data kelas tidak ditemukan.');
+        }
+
+        if ($type === 'gerbang') {
+            // Dapatkan ID siswa dari kelas yang diampunya
+            $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+
+            // Riwayat absensi gerbang siswa di kelas
+            $query = AbsensiGerbang::whereIn('related_id', $siswaIds)
+                ->with(['siswa']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            // Hitung statistik
+            $totalSiswa = count($siswaIds);
+            $totalAbsensi = $absensi->count();
+            $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', '!=', null)->count();
+            $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', null)->count();
+
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalSiswa' => $totalSiswa,
+                'totalAbsensi' => $totalAbsensi,
+                'absensiLengkap' => $absensiLengkap,
+                'belumAbsenKeluar' => $belumAbsenKeluar
+            ];
+
+            $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
+            return $pdf->download('Absensi_Gerbang_Kelas_' . $kelas->nama_kelas . '.pdf');
+        } else {
+            // Riwayat absensi siswa di kelas
+            $query = AbsensiSiswaKelas::where('kelas_id', $kelasId)
+                ->with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru']);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            // Hitung statistik
+            $totalHadir = $absensi->where('status', 'Hadir')->count();
+            $totalIzin = $absensi->where('status', 'Izin')->count();
+            $totalSakit = $absensi->where('status', 'Sakit')->count();
+            $totalAlpa = $absensi->where('status', 'Alpa')->count();
+
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalHadir' => $totalHadir,
+                'totalIzin' => $totalIzin,
+                'totalSakit' => $totalSakit,
+                'totalAlpa' => $totalAlpa
+            ];
+
+            $pdf = PDF::loadView('absensi.export.export-siswa-kelas', $data);
+            return $pdf->download('Absensi_Siswa_Kelas_' . $kelas->nama_kelas . '.pdf');
+        }
+    }
+
+    /**
+     * Export PDF untuk Kurikulum
+     */
+    private function exportKurikulumAbsensiPdf($type, $period, $startDate, $endDate, $kelasId)
+    {
+        $kelas = null;
+        if ($kelasId) {
+            $kelas = Kelas::find($kelasId);
+        }
+
+        if ($type === 'gerbang') {
+            // Riwayat absensi gerbang semua siswa atau berdasarkan kelas
+            $query = AbsensiGerbang::with(['siswa'])
+                ->whereNotNull('related_id');  // Hanya ambil data siswa
+
+            if ($kelasId) {
+                $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+                $query->whereIn('related_id', $siswaIds);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            // Hitung statistik
+            $totalSiswa = Siswa::when($kelasId, function($query) use($kelasId) {
+                return $query->where('kelas_id', $kelasId);
+            })->count();
+
+            $totalAbsensi = $absensi->count();
+            $absensiLengkap = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', '!=', null)->count();
+            $belumAbsenKeluar = $absensi->where('waktu_scan_masuk', '!=', null)
+                ->where('waktu_scan_keluar', null)->count();
+
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalSiswa' => $totalSiswa,
+                'totalAbsensi' => $totalAbsensi,
+                'absensiLengkap' => $absensiLengkap,
+                'belumAbsenKeluar' => $belumAbsenKeluar
+            ];
+
+            $filename = 'Absensi_Gerbang_';
+            $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
+            $filename .= '.pdf';
+
+            $pdf = PDF::loadView('absensi.export.export-gerbang-kelas', $data);
+            return $pdf->download($filename);
+        } else {
+            // Riwayat absensi siswa di kelas
+            $query = AbsensiSiswaKelas::with(['siswa', 'jadwal.jadwalPelajaran.mataPelajaran', 'jadwal.jadwalPelajaran.guru']);
+
+            if ($kelasId) {
+                $query->where('kelas_id', $kelasId);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('tanggal', [$startDate, $endDate]);
+            }
+
+            $absensi = $query->orderBy('tanggal', 'desc')->get();
+
+            // Hitung statistik
+            $totalHadir = $absensi->where('status', 'Hadir')->count();
+            $totalIzin = $absensi->where('status', 'Izin')->count();
+            $totalSakit = $absensi->where('status', 'Sakit')->count();
+            $totalAlpa = $absensi->where('status', 'Alpa')->count();
+
+            $data = [
+                'kelas' => $kelas,
+                'absensi' => $absensi,
+                'type' => $type,
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'totalHadir' => $totalHadir,
+                'totalIzin' => $totalIzin,
+                'totalSakit' => $totalSakit,
+                'totalAlpa' => $totalAlpa
+            ];
+
+            $filename = 'Absensi_Siswa_';
+            $filename .= $kelas ? 'Kelas_' . $kelas->nama_kelas : 'Semua_Kelas';
+            $filename .= '.pdf';
+
+            $pdf = PDF::loadView('absensi.export.export-siswa-kelas', $data);
+            return $pdf->download($filename);
+        }
+    }
+
+    /**
+     * Import absensi siswa dari Excel (khusus Guru)
+     */
+    public function importForm()
+    {
+        $user = Auth::user();
+
+        if ($user->role !== 'karyawan') {
+            return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki akses.');
+        }
+
+        $karyawan = Karyawan::find($user->related_id);
+
+        if (!$karyawan || strtolower($karyawan->jabatan) !== 'guru') {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Fitur ini hanya untuk guru.');
+        }
+
+        // Ambil jadwal mengajar guru
+        $jadwalMengajar = Jadwal::whereHas('jadwalPelajaran', function($q) use ($karyawan) {
+            $q->where('guru_id', $karyawan->id);
+        })->with(['kelas', 'jadwalPelajaran.mataPelajaran'])->get();
+
+        return view('absensi.import-form', compact('jadwalMengajar'));
+    }
+
+    /**
+     * Proses import absensi siswa dari Excel (khusus Guru)
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:csv,txt',
+            'jadwal_id' => 'required|exists:jadwal,id',
+            'tanggal' => 'required|date'
+        ]);
+
+        $user = Auth::user();
+
+        if ($user->role !== 'karyawan') {
+            return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki akses.');
+        }
+
+        $karyawan = Karyawan::find($user->related_id);
+
+        if (!$karyawan || strtolower($karyawan->jabatan) !== 'guru') {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Fitur ini hanya untuk guru.');
+        }
+
+        $jadwal = Jadwal::findOrFail($request->jadwal_id);
+
+        // Cek apakah jadwal ini diajar oleh guru yang login
+        $isValidJadwal = Jadwal::where('id', $request->jadwal_id)
+            ->whereHas('jadwalPelajaran', function($q) use ($karyawan) {
+                $q->where('guru_id', $karyawan->id);
+            })->exists();
+
+        if (!$isValidJadwal) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses untuk jadwal ini.');
+        }
+
+        try {
+            // Proses import CSV
+            $csvFile = $request->file('file');
+            $jadwalId = $request->jadwal_id;
+            $tanggal = $request->tanggal;
+            $userId = $user->id;
+
+            // Baca file CSV
+            $handle = fopen($csvFile->getPathname(), 'r');
+
+            // Lewati header
+            $header = fgetcsv($handle);
+
+            // Mulai transaksi database
+            DB::beginTransaction();
+
+            while (($row = fgetcsv($handle)) !== false) {
+                $nis = $row[0] ?? null;
+                $status = $row[1] ?? null;
+                $keterangan = $row[2] ?? null;
+
+                if (empty($nis) || empty($status)) {
+                    continue;
+                }
+
+                // Cari siswa berdasarkan NIS
+                $siswa = Siswa::where('nis', $nis)->first();
+                if (!$siswa) {
+                    Log::warning('Siswa dengan NIS ' . $nis . ' tidak ditemukan');
+                    continue;
+                }
+
+                // Standarisasi status
+                $status = ucfirst(strtolower(trim($status)));
+                if (!in_array($status, ['Hadir', 'Izin', 'Sakit', 'Alpa'])) {
+                    $status = 'Alpa'; // Default ke Alpa jika tidak valid
+                }
+
+                // Cek apakah sudah ada absensi
+                $existingAbsensi = AbsensiSiswaKelas::where([
+                    'related_id' => $siswa->id,
+                    'jadwal_id' => $jadwalId,
+                    'tanggal' => $tanggal,
+                ])->first();
+
+                if ($existingAbsensi) {
+                    // Update existing record
+                    $existingAbsensi->update([
+                        'status' => $status,
+                        'keterangan' => $keterangan,
+                        'input_by' => $userId,
+                    ]);
+                } else {
+                    // Create new record
+                    AbsensiSiswaKelas::create([
+                        'related_id' => $siswa->id,
+                        'jadwal_id' => $jadwalId,
+                        'kelas_id' => $siswa->kelas_id,
+                        'tanggal' => $tanggal,
+                        'status' => $status,
+                        'keterangan' => $keterangan,
+                        'input_by' => $userId,
+                    ]);
+                }
+            }
+
+            fclose($handle);
+
+            // Commit transaksi
+            DB::commit();
+
+            return redirect()->route('karyawan.riwayat-absensi')->with('success', 'Data absensi siswa berhasil diimpor.');
+        } catch (\Exception $e) {
+            // Rollback transaksi jika ada error
+            DB::rollBack();
+
+            Log::error('Error importing student attendance: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download template untuk import absensi siswa
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function downloadTemplate()
+    {
+        $user = Auth::user();
+
+        if ($user->role !== 'karyawan') {
+            return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki akses.');
+        }
+
+        $karyawan = Karyawan::find($user->related_id);
+
+        if (!$karyawan || strtolower($karyawan->jabatan) !== 'guru') {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Fitur ini hanya untuk guru.');
+        }
+
+        // Daripada mencari file Excel yang mungkin tidak ada,
+        // langsung saja buat template CSV sederhana
+        return $this->generateTemplateFile();
+    }
+
+    /**
+     * Generate template file CSV untuk import absensi
+     *
+     * @return \Illuminate\Http\Response
+     */
+  /**
+     * Generate template file CSV untuk import absensi
+     *
+     * @return \Illuminate\Http\Response
+     */
+    private function generateTemplateFile()
+    {
+        // Buat file CSV sederhana
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="template_absensi_siswa.csv"',
+        ];
+
+        $callback = function() {
+            $file = fopen('php://output', 'w');
+
+            // Tambahkan header
+            fputcsv($file, ['nis', 'status', 'keterangan']);
+
+            // Tambahkan contoh data
+            fputcsv($file, ['123456', 'Hadir', '']);
+            fputcsv($file, ['123457', 'Izin', 'Izin keperluan keluarga']);
+            fputcsv($file, ['123458', 'Sakit', 'Sakit demam']);
+            fputcsv($file, ['123459', 'Alpa', '']);
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Halaman profil karyawan
+     */
+    public function profile()
+    {
+        $user = Auth::user();
+
+        if ($user->role !== 'karyawan') {
+            return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki akses.');
+        }
+
+        $karyawan = Karyawan::with('kelas', 'jurusan', 'tahunAjaran')->find($user->related_id);
+
+        if (!$karyawan) {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Profil tidak ditemukan.');
+        }
+
+        return view('karyawan.profile', compact('karyawan', 'user'));
+    }
+
+    /**
+     * Update profil karyawan
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = Auth::user();
+
+        if ($user->role !== 'karyawan') {
+            return redirect()->route('admin.dashboard')->with('error', 'Anda tidak memiliki akses.');
+        }
+
+        $karyawan = Karyawan::find($user->related_id);
+
+        if (!$karyawan) {
+            return redirect()->route('karyawan.dashboard')->with('error', 'Profil tidak ditemukan.');
+        }
+
+        // Validasi input
+        $request->validate([
+            'nama_lengkap' => 'required',
+            'jenis_kelamin' => 'required',
+            'tempat_lahir' => 'nullable|string|max:100',
+            'tanggal_lahir' => 'nullable|date',
+            'no_wa' => 'nullable|string|max:15',
+            'username' => 'required|unique:users,username,' . $user->id,
+            'password' => 'nullable|min:6|confirmed',
+            'foto' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+        ]);
+
+        // Handle photo upload
+        if ($request->hasFile('foto')) {
+            // Delete old photo if exists
+            if ($karyawan->foto) {
+                Storage::disk('public')->delete($karyawan->foto);
+            }
+
+            // Save new photo
+            $fotoPath = $request->file('foto')->store('foto/karyawan', 'public');
+        } else {
+            // Keep old photo if no new file is uploaded
+            $fotoPath = $karyawan->foto;
+        }
+
+        // Update karyawan data
+        $karyawan->update([
+            'nama_lengkap' => $request->nama_lengkap,
+            'jenis_kelamin' => $request->jenis_kelamin,
+            'tempat_lahir' => $request->tempat_lahir,
+            'tanggal_lahir' => $request->tanggal_lahir,
+            'no_wa' => $request->no_wa,
+            'email' => $request->email,
+            'foto' => $fotoPath,
+        ]);
+
+        // Update related user account
+        $userData = [
+            'username' => $request->username
+        ];
+
+        // Update password if provided
+        if ($request->filled('password')) {
+            $userData['password'] = Hash::make($request->password);
+        }
+
+        $user->update($userData);
+
+        return redirect()->route('karyawan.profile')->with('success', 'Profil berhasil diperbarui.');
+    }
+}

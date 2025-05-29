@@ -8,7 +8,7 @@
             <h5 class="mb-0">Form Edit Data Siswa</h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('siswa.update', $siswa->id) }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route(Auth::user()->role.'.siswa.update', $siswa->id) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
 

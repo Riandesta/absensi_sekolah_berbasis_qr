@@ -45,6 +45,11 @@ class Karyawan extends Model
         return $this->belongsTo(TahunAjaran::class);
     }
 
+    public function jadwalPelajaran()
+    {
+        return $this->hasMany(JadwalPelajaran::class, 'guru_id');
+    }
+
     public function generateQrCode()
     {
         // Pastikan direktori qr-codes ada

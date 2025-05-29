@@ -18,13 +18,18 @@
                     <i class="bi bi-person-circle fs-3 me-2 d-flex align-items-center"></i>
                 @endif
 
-                <span class="d-none d-sm-inline fw-bold">{{ Auth::user()->name }}</span>
+                <span class="d-none d-sm-inline fw-bold ms-2">
+                    @if (Auth::user()->role === 'karyawan')
+                        {{ Auth::user()->karyawan->nama_lengkap ?? 'Nama Lengkap' }}
+                    @elseif (Auth::user()->role === 'siswa')
+                        {{ Auth::user()->siswa->nama_lengkap ?? 'Nama Lengkap' }}
+                    @else
+                        {{ Auth::user()->name ?? 'Nama Lengkap' }}
+                    @endif
+                </span>
             </a>
 
             <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownUser">
-                {{-- <li><a class="dropdown-item" href="{{ route('profile') }}">Profil</a></li> --}}
-                <li><a class="dropdown-item" href="#">Profil</a></li>
-                <li><hr class="dropdown-divider"></li>
                 <li>
                     <form action="{{ route('logout') }}" method="POST" class="d-inline">
                         @csrf

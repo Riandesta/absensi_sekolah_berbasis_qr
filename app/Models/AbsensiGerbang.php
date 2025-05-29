@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,29 +6,34 @@ use Illuminate\Database\Eloquent\Model;
 class AbsensiGerbang extends Model
 {
     protected $table = 'absensi_gerbang';
+
     protected $fillable = [
         'related_id',
         'tanggal',
-        'waktu_scan',
+        'waktu_scan_masuk',
+        'waktu_scan_keluar',
         'status',
         'scanned_by',
+        'jadwal_id',
     ];
 
-    // Relasi ke siswa
     public function siswa()
     {
         return $this->belongsTo(Siswa::class, 'related_id');
     }
 
-    // Relasi ke karyawan
     public function karyawan()
     {
         return $this->belongsTo(Karyawan::class, 'related_id');
     }
 
-    // Relasi ke user yang mencatat absensi
     public function scannedBy()
     {
         return $this->belongsTo(User::class, 'scanned_by');
+    }
+
+    public function jadwal()
+    {
+        return $this->belongsTo(Jadwal::class, 'jadwal_id');
     }
 }

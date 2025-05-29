@@ -8,14 +8,33 @@ use App\Models\Jurusan;
 use App\Models\Karyawan;
 use App\Models\TahunAjaran;
 use Illuminate\Http\Request;
+use App\Models\AbsensiGerbang;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class KaryawanController extends Controller
 {
+
+       /**
+     * Display the dashboard for the karyawan.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function dashboard()
+    {
+        $user = Auth::user();
+        $karyawan = null;
+
+        if ($user->role === 'karyawan' && $user->related_id) {
+            $karyawan = Karyawan::find($user->related_id);
+        }
+
+        return view('karyawan.dashboard', compact('karyawan'));
+    }
     /**
      * Display a listing of employees.
      */
@@ -306,4 +325,100 @@ class KaryawanController extends Controller
             'qr_code' => 'storage/qr-codes/' . $fileName,
         ]);
     }
+
+    public function laporanKaryawan(Request $request)
+{
+    if (Auth::user()->role !== 'admin') {
+        return redirect()->route('admin.dashboard')
+            ->with('error', 'Anda tidak memiliki akses untuk mengakses halaman ini.');
+    }
+
+    $query = AbsensiGerbang::query();
+
+    if ($request->has('tanggal')) {
+        $query->whereDate('tanggal', $request->tanggal);
+    }
+
+    $absensiKaryawan = $query->with(['karyawan', 'scannedBy', 'jadwal'])
+        ->orderBy('tanggal', 'desc')
+        ->paginate(10);
+
+    return view('absensi-gerbang.laporan-karyawan', compact('absensiKaryawan'));
+}
+
+public function profile()
+{
+    $user = Auth::user();
+    $karyawan = Karyawan::with('kelas', 'jurusan', 'tahunAjaran')->find($user->related_id);
+
+    if (!$karyawan) {
+        return redirect()->route('karyawan.dashboard')->with('error', 'Profil tidak ditemukan.');
+    }
+
+    return view('karyawan.profile', compact('karyawan', 'user'));
+}
+
+/**
+ * Update the student profile
+ */
+public function updateProfile(Request $request)
+{
+    $user = Auth::user();
+    $karyawan = Karyawan::find($user->related_id);
+
+    if (!$karyawan) {
+        return redirect()->route('karyawan.dashboard')->with('error', 'Profil tidak ditemukan.');
+    }
+
+    // Validate input
+    $request->validate([
+        'nama_lengkap' => 'required',
+        'jenis_kelamin' => 'required',
+        'tempat_lahir' => 'nullable|string|max:100',
+        'tanggal_lahir' => 'nullable|date',
+        'no_wa' => 'nullable|string|max:15',
+        'username' => 'required|unique:users,username,' . $user->id,
+        'password' => 'nullable|min:6|confirmed',
+        'foto' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048', // Max 2MB
+    ]);
+
+    // Handle photo upload
+    if ($request->hasFile('foto')) {
+        // Delete old photo if exists
+        if ($karyawan->foto) {
+            Storage::disk('public')->delete($karyawan->foto);
+        }
+
+        // Save new photo
+        $fotoPath = $request->file('foto')->store('foto/karyawan', 'public');
+    } else {
+        // Keep old photo if no new file is uploaded
+        $fotoPath = $karyawan->foto;
+    }
+
+    // Update student data
+    $karyawan->update([
+        'nama_lengkap' => $request->nama_lengkap,
+        'jenis_kelamin' => $request->jenis_kelamin,
+        'tempat_lahir' => $request->tempat_lahir,
+        'tanggal_lahir' => $request->tanggal_lahir,
+        'no_wa' => $request->no_wa,
+        'email' => $request->email,
+        'foto' => $fotoPath,
+    ]);
+
+    // Update related user account
+    $userData = [
+        'username' => $request->username
+    ];
+
+    // Update password if provided
+    if ($request->filled('password')) {
+        $userData['password'] = Hash::make($request->password);
+    }
+
+    $user->update($userData);
+
+    return redirect()->route('karyawan.profile')->with('success', 'Profil berhasil diperbarui.');
+}
 }

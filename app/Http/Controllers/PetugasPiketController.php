@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PetugasPiket;
 use App\Models\Karyawan;
+use App\Models\PetugasPiket;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class PetugasPiketController extends Controller
 {
@@ -25,13 +26,12 @@ class PetugasPiketController extends Controller
         $validated = $request->validate([
             'karyawan_id' => 'required|exists:karyawan,id',
             'tanggal' => 'required|date',
-            'shift' => 'required|in:Pagi,Siang,Sore',
             'keterangan' => 'nullable|string',
         ]);
 
         PetugasPiket::create($validated);
 
-        return redirect()->route('petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil ditambahkan.');
+        return redirect()->route(Auth::user()->role .'.petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil ditambahkan.');
     }
 
     public function edit(PetugasPiket $petugasPiket)
@@ -45,13 +45,12 @@ class PetugasPiketController extends Controller
         $validated = $request->validate([
             'karyawan_id' => 'required|exists:karyawan,id',
             'tanggal' => 'required|date',
-            'shift' => 'required|in:Pagi,Siang,Sore',
             'keterangan' => 'nullable|string',
         ]);
 
         $petugasPiket->update($validated);
 
-        return redirect()->route('petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil diperbarui.');
+        return redirect()->route(Auth::user()->role .'.petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil diperbarui.');
     }
 
     public function validateActivePetugas($karyawanId, $tanggal, $shift)
@@ -65,6 +64,6 @@ class PetugasPiketController extends Controller
     public function destroy(PetugasPiket $petugasPiket)
     {
         $petugasPiket->delete();
-        return redirect()->route('petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil dihapus.');
+        return redirect()->route(Auth::user()->role .'.petugas-piket.index')->with('success', 'Jadwal petugas piket berhasil dihapus.');
     }
 }

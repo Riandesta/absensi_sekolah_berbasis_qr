@@ -13,17 +13,18 @@ return new class extends Migration
     {
         Schema::create('absensi_guru_kelas', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('karyawan_id');
             $table->unsignedBigInteger('jadwal_id');
-            $table->unsignedBigInteger('kelas_id');
             $table->date('tanggal');
             $table->time('waktu_scan');
             $table->unsignedBigInteger('scan_by_user_id');
-            $table->string('status')->default('hadir');
-            $table->foreign('karyawan_id')->references('id')->on('karyawan')->onDelete('cascade');
-            $table->foreign('jadwal_id')->references('id')->on('jadwal_pelajaran')->onDelete('cascade');
-            $table->foreign('kelas_id')->references('id')->on('kelas')->onDelete('cascade');
-            $table->foreign('scan_by_user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->string('status')->default('tidak hadir');
+            $table->unsignedBigInteger('karyawan_id');
+            $table->unsignedBigInteger('kelas_id');
+
+            $table->foreign('jadwal_id')->references('id')->on('jadwal') ->onDelete('cascade');
+            $table->foreign('kelas_id')->references('id')->on('kelas');
+            $table->foreign('karyawan_id')->references('id')->on('karyawan');
+            $table->foreign('scan_by_user_id')->references('id')->on('users');
             $table->timestamps();
         });
     }

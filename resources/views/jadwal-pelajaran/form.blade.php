@@ -22,7 +22,7 @@
                         @endif
 
                         <form
-                            action="{{ isset($jadwalPelajaran) ? route('jadwal-pelajaran.update', $jadwalPelajaran) : route('jadwal-pelajaran.store') }}"
+                            action="{{ isset($jadwalPelajaran) ? route(Auth::user()->role .'.jadwal-pelajaran.update', $jadwalPelajaran) : route(Auth::user()->role .'.jadwal-pelajaran.store') }}"
                             method="POST">
                             @csrf
                             @if (isset($jadwalPelajaran))
@@ -38,7 +38,6 @@
                                                 {{ $guru->nama_lengkap }}
                                             </option>
                                         @endforeach
-                                        <option value="Guru">Guru</option>
                                     </select>
                                     @error('guru_id')
                                         <small class="text-danger">{{ $message }}</small>
@@ -152,7 +151,7 @@
                             </div>
 
                             <div class="d-flex justify-content-end mt-4">
-                                <a href="{{ route('jadwal-pelajaran.index') }}" class="btn btn-secondary me-2">Batal</a>
+                                <a href="{{ route(Auth::user()->role .'.jadwal-pelajaran.index') }}" class="btn btn-secondary me-2">Batal</a>
                                 <button type="submit" class="btn btn-primary">Simpan</button>
                             </div>
                         </form>
@@ -160,48 +159,65 @@
                         <script>
                             document.addEventListener('DOMContentLoaded', () => {
                                 const container = document.getElementById('slots-container');
-                                document.getElementById('add-slot').addEventListener('click', () => {
+                                const addButton = document.getElementById('add-slot');
+
+                                addButton.addEventListener('click', () => {
+                                    console.log('Add slot button clicked'); // Debug log
+
                                     const index = container.querySelectorAll('.slot-row').length;
+                                    console.log('Current index:', index); // Debug log
+
                                     const div = document.createElement('div');
                                     div.className = 'slot-row row g-3 align-items-end';
+
                                     div.innerHTML = `
-                                    <div class="col-md-3">
-                                        <label class="form-label">Kelas</label>
-                                        <select name="slots[${index}][kelas_id]" class="form-select" required>
-                                            @foreach ($kelasList as $kelas)
-                                                <option value="{{ $kelas->id }}">{{ $kelas->nama_kelas }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label">Hari</label>
-                                        <select name="slots[${index}][hari]" class="form-select" required>
-                                            <option>Senin</option><option>Selasa</option><option>Rabu</option>
-                                            <option>Kamis</option><option>Jumat</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label">Jam Mulai</label>
-                                        <input type="time" name="slots[${index}][jam_mulai]" class="form-control" required>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label class="form-label">Jam Selesai</label>
-                                        <input type="time" name="slots[${index}][jam_selesai]" class="form-control" required>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <button type="button" class="btn btn-danger remove-slot mt-4">
-                                            <i class="bi bi-trash"></i> Hapus
-                                        </button>
-                                    </div>
-                                `;
+                                        <div class="col-md-3">
+                                            <label class="form-label">Kelas</label>
+                                            <select name="slots[${index}][kelas_id]" class="form-select" required>
+                                                @foreach ($kelasList as $kelas)
+                                                    <option value="{{ $kelas->id }}">{{ $kelas->nama_kelas }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Hari</label>
+                                            <select name="slots[${index}][hari]" class="form-select" required>
+                                                <option>Senin</option>
+                                                <option>Selasa</option>
+                                                <option>Rabu</option>
+                                                <option>Kamis</option>
+                                                <option>Jumat</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Jam Mulai</label>
+                                            <input type="time" name="slots[${index}][jam_mulai]" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label">Jam Selesai</label>
+                                            <input type="time" name="slots[${index}][jam_selesai]" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <button type="button" class="btn btn-danger remove-slot mt-4">
+                                                <i class="bi bi-trash"></i> Hapus
+                                            </button>
+                                        </div>
+                                    `;
+
                                     container.appendChild(div);
+                                    console.log('New slot added'); // Debug log
                                 });
 
                                 container.addEventListener('click', e => {
                                     if (e.target.closest('.remove-slot')) {
+                                        console.log('Remove slot button clicked'); // Debug log
                                         e.target.closest('.slot-row').remove();
+                                        console.log('Slot removed'); // Debug log
                                     }
                                 });
+
+                                // Debug: Log the initial number of slots
+                                console.log('Initial number of slots:', container.querySelectorAll('.slot-row').length);
                             });
                         </script>
                     </div>

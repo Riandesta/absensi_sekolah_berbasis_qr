@@ -232,3 +232,108 @@ class KaryawanController extends Controller
         }
     }
 }
+
+
+
+
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4>Laporan Absensi</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">Laporan Absensi Guru</h5>
+                            </div>
+                            <div class="card-body">
+                                <form action="{{ route(Auth::user()->role .'.absensi-guru-kelas.report') }}" method="GET" target="_blank">
+                                    <input type="hidden" name="kelas_id" value="{{ $kelasId }}">
+                                    <div class="mb-3">
+                                        <label class="form-label">Periode Laporan</label>
+                                        <select name="report_type" class="form-select">
+                                            <option value="daily">Harian</option>
+                                            <option value="weekly">Mingguan</option>
+                                            <option value="monthly">Bulanan</option>
+                                            <option value="semester">Semester</option>
+                                            <option value="yearly">Tahunan</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Tanggal Spesifik (Opsional)</label>
+                                        <input type="date" name="tanggal" class="form-control">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="bi bi-file-earmark-text me-1"></i> Generate Laporan
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">Laporan Absensi Siswa</h5>
+                            </div>
+                            <div class="card-body">
+                                <form action="{{ route(Auth::user()->role .'.absensi-siswa-kelas.laporan') }}" method="GET" target="_blank">
+                                    <input type="hidden" name="kelas_id" value="{{ $kelasId }}">
+                                    <div class="mb-3">
+                                        <label class="form-label">Periode Laporan</label>
+                                        <select name="report_type" class="form-select">
+                                            <option value="daily">Harian</option>
+                                            <option value="weekly">Mingguan</option>
+                                            <option value="monthly">Bulanan</option>
+                                            <option value="semester">Semester</option>
+                                            <option value="yearly">Tahunan</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Tanggal Spesifik (Opsional)</label>
+                                        <input type="date" name="tanggal" class="form-control">
+                                    </div>
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="bi bi-file-earmark-text me-1"></i> Generate Laporan
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">Laporan Absensi Gerbang</h5>
+                            </div>
+                            <div class="card-body">
+                                {{-- <form action="{{ route(Auth::user()->role .'.absensi-gerbang.laporan-karyawan') }}" method="GET" target="_blank">
+                                    <input type="hidden" name="kelas_id" value="{{ $kelasId }}">
+                                    <div class="mb-3">
+                                        <label class="form-label">Periode Laporan</label>
+                                        <select name="report_type" class="form-select">
+                                            <option value="daily">Harian</option>
+                                            <option value="weekly">Mingguan</option>
+                                            <option value="monthly">Bulanan</option>
+                                            <option value="semester">Semester</option>
+                                            <option value="yearly">Tahunan</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Tanggal Spesifik (Opsional)</label>
+                                        <input type="date" name="tanggal" class="form-control">
+                                    </div>
+                                    <button type="submit" class="btn btn-info w-100">
+                                        <i class="bi bi-file-earmark-text me-1"></i> Generate Laporan
+                                    </button>
+                                </form> --}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

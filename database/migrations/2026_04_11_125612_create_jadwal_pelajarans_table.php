@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('jadwal_pelajaran', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('guru_id')->nullable(); // Relasi dengan pengajar
+            $table->unsignedBigInteger('guru_id'); // Relasi dengan pengajar
             $table->unsignedBigInteger('mata_pelajaran_id'); // Relasi dengan mata pelajaran
             $table->unsignedBigInteger('tahun_ajaran_id'); // Relasi dengan tahun ajaran
             $table->timestamps();

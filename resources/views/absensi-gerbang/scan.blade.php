@@ -29,7 +29,7 @@
                 </div>
             </div>
 
-            <form id="qr-form" action="{{ route('absensi-gerbang.scan-process') }}" method="POST" style="display: none;">
+            <form id="qr-form" action="{{ route(Auth::user()->role .'.absensi-gerbang.scan-process') }}" method="POST" style="display: none;">
                 @csrf
                 <input type="hidden" name="qr_code" id="qr-code-input">
             </form>
@@ -54,7 +54,6 @@
     }
 
     function onScanFailure(error) {
-        // Handle scan failure (optional)
         console.warn(`Error scanning QR Code: ${error}`);
     }
 
@@ -62,5 +61,29 @@
         "qr-reader", { fps: 10, qrbox: 250 }
     );
     html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+</script>
+
+<!-- SweetAlert2 untuk Notifikasi -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    @if (session('success'))
+        Swal.fire({
+            icon: 'success',
+            title: 'Berhasil!',
+            text: '{{ session('success') }}',
+            timer: 3000,
+            showConfirmButton: false
+        });
+    @endif
+
+    @if ($errors->any())
+        Swal.fire({
+            icon: 'error',
+            title: 'Gagal!',
+            text: '{{ $errors->first() }}',
+            timer: 4000,
+            showConfirmButton: false
+        });
+    @endif
 </script>
 @endsection

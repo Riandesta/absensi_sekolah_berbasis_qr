@@ -8,7 +8,7 @@
             <h5 class="mb-0">Form Edit Jadwal Petugas Piket</h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('petugas-piket.update', $petugasPiket) }}" method="POST">
+            <form action="{{ route(Auth::user()->role .'.petugas-piket.update', $petugasPiket) }}" method="POST">
                 @csrf
                 @method('PUT')
 
@@ -33,18 +33,6 @@
                     @error('tanggal') <div class="text-danger">{{ $message }}</div> @enderror
                 </div>
 
-                <!-- Shift -->
-                <div class="mb-3">
-                    <label for="shift" class="form-label">Shift</label>
-                    <select name="shift" id="shift" class="form-select" required>
-                        <option value="">Pilih Shift</option>
-                        <option value="Pagi" {{ old('shift', $petugasPiket->shift) == 'Pagi' ? 'selected' : '' }}>Pagi</option>
-                        <option value="Siang" {{ old('shift', $petugasPiket->shift) == 'Siang' ? 'selected' : '' }}>Siang</option>
-                        <option value="Sore" {{ old('shift', $petugasPiket->shift) == 'Sore' ? 'selected' : '' }}>Sore</option>
-                    </select>
-                    @error('shift') <div class="text-danger">{{ $message }}</div> @enderror
-                </div>
-
                 <!-- Keterangan -->
                 <div class="mb-3">
                     <label for="keterangan" class="form-label">Keterangan</label>
@@ -53,7 +41,7 @@
                 </div>
 
                 <div class="text-end">
-                    <a href="{{ route('petugas-piket.index') }}" class="btn btn-secondary me-2">Kembali</a>
+                    <a href="{{ route(Auth::user()->role .'.petugas-piket.index') }}" class="btn btn-secondary me-2">Kembali</a>
                     <button type="submit" class="btn btn-success">Simpan</button>
                 </div>
             </form>

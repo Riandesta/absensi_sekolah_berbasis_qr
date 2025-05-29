@@ -2,15 +2,19 @@
 
 namespace App\Models;
 
-use App\Models\JadwalPelajaran;
 use Illuminate\Database\Eloquent\Model;
 
 class Jadwal extends Model
 {
     protected $table = 'jadwal';
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'jadwal_pelajaran_id',
+        'kelas_id',
+        'hari',
+        'jam_mulai',
+        'jam_selesai'
+    ];
 
-    // Relasi ke JadwalPelajaran
     public function kelas()
     {
         return $this->belongsTo(Kelas::class, 'kelas_id');
