@@ -75,12 +75,12 @@
                                                 </button>
                                                 <ul class="dropdown-menu">
                                                     <li>
-                                                        <a href="{{ route('karyawan.download-qrcode', $item->id) }}" class="dropdown-item">
+                                                        <a href="{{ route('admin.karyawan.download-qrcode', $item->id) }}" class="dropdown-item">
                                                             <i class="bi bi-card-heading"></i> Unduh ID Card
                                                         </a>
                                                     </li>
                                                     <li>
-                                                        <a href="{{ route('karyawan.download-qrcode-only', $item->id) }}" class="dropdown-item">
+                                                        <a href="{{ route('admin.karyawan.download-qrcode-only', $item->id) }}" class="dropdown-item">
                                                             <i class="bi bi-qr-code"></i> Unduh QR Code Saja
                                                         </a>
                                                     </li>
