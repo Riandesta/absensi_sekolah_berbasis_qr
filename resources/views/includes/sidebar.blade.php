@@ -67,13 +67,13 @@
                         </ul>
                     </li>
 
-                    <!-- Petugas Piket -->
-                    <li class="sidebar-item {{ request()->is('admin/petugas-piket*') ? 'active' : '' }}">
-                        <a href="{{ route($role . '.petugas-piket.index') }}" class='sidebar-link'>
-                            <i class="bi bi-person-check-fill"></i>
-                            <span>Petugas Piket</span>
-                        </a>
-                    </li>
+                        {{-- <!-- Petugas Piket -->
+                        <li class="sidebar-item {{ request()->is('admin/petugas-piket*') ? 'active' : '' }}">
+                            <a href="{{ route($role . '.petugas-piket.index') }}" class='sidebar-link'>
+                                <i class="bi bi-person-check-fill"></i>
+                                <span>Petugas Piket</span>
+                            </a>
+                        </li> --}}
 
                     {{-- <!-- Absensi -->
                     <li class="sidebar-item has-sub {{ request()->is('admin/absensi-*') ? 'active' : '' }}">
@@ -174,7 +174,7 @@
                 @endif
 
                 @if ($role === 'karyawan')
-                    <li class="sidebar-title">Karyawan</li>
+                    {{-- <li class="sidebar-title">Karyawan</li>
 
                     <!-- FIXED: Riwayat Kehadiran Saya - simplified active state condition -->
                     <li
@@ -193,7 +193,7 @@
                                 <span>Petugas Piket</span>
                             </a>
                         </li>
-                    @endif
+                    @endif --}}
 
                     @if ($isGuru)
                         <!-- Absensi - RESTRUCTURED -->
@@ -201,7 +201,7 @@
                                 in_array(strtolower(Auth::user()->karyawan->jabatan), ['guru', 'wali kelas', 'kurikulum']))
                             <li
                                 class="sidebar-item {{ request()->is('karyawan/absensi-siswa-kelas*') ? 'active' : '' }}">
-                                <a href="{{ route($role . '.absensi-siswa-kelas.index') }}" class='sidebar-link'>
+                                <a href="{{ route('karyawan.absensi-siswa-kelas.index') }}" class='sidebar-link'>
                                     <i class="bi bi-people"></i>
                                     <span>Absensi Siswa</span>
                                 </a>
@@ -285,7 +285,7 @@
                             </a>
                         </li>
                     @endif
-                @endif  
+                @endif
 
                 <!-- Kelas Menu Section -->
                 @if ($role === 'kelas')

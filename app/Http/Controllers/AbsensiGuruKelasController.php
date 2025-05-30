@@ -68,7 +68,7 @@ class AbsensiGuruKelasController extends Controller
         $absensiGuru = $query->with(['karyawan', 'kelas', 'jadwal', 'scanByUser'])->paginate(10);
 
         // Return the view with the data
-        return view('absensi-guru-kelas.index', compact('absensiGuru', 'kelasList'));
+        return view(Auth::user()->role . '.absensi-guru-kelas.index', compact('absensiGuru', 'kelasList'));
     }
 
 
@@ -236,7 +236,7 @@ class AbsensiGuruKelasController extends Controller
                 'status' => 'Hadir',
             ]);
 
-            return redirect()->route('absensi-guru-kelas.index')->with('success', 'Absensi guru berhasil disimpan.');
+            return redirect()->route(Auth::user()->role . '.absensi-guru-kelas.index')->with('success', 'Absensi guru berhasil disimpan.');
         } catch (\Exception $e) {
             Log::error('Error during QR scan process: ' . $e->getMessage());
             return back()->withErrors(['message' => 'Terjadi kesalahan: ' . $e->getMessage()]);
@@ -310,7 +310,7 @@ class AbsensiGuruKelasController extends Controller
     {
         // Cek apakah user memiliki akses ke data ini
         if (Auth::user()->role === 'kelas' && Auth::user()->related_id != $absensiGuruKelas->kelas_id) {
-            return redirect()->route('absensi-guru-kelas.index')->with('error', 'Anda tidak memiliki akses ke data ini.');
+            return redirect()->route(Auth::user()->role . '.absensi-guru-kelas.index')->with('error', 'Anda tidak memiliki akses ke data ini.');
         }
 
         return view('absensi-guru-kelas.show', compact('absensiGuruKelas'));
@@ -328,7 +328,7 @@ class AbsensiGuruKelasController extends Controller
 
         try {
             $absensiGuruKelas->delete();
-            return redirect()->route('absensi-guru-kelas.index')->with('success', 'Data absensi berhasil dihapus.');
+            return redirect()->route(Auth::user()->role . '.absensi-guru-kelas.index')->with('success', 'Data absensi berhasil dihapus.');
         } catch (\Exception $e) {
             return back()->with('error', 'Terjadi kesalahan saat menghapus data absensi: ' . $e->getMessage());
         }
@@ -383,7 +383,7 @@ class AbsensiGuruKelasController extends Controller
         // Get the results
         $absensiGuru = $query->with(['karyawan', 'kelas', 'jadwal', 'scanByUser'])->get();
 
-        
+
         // Return the report view with the data
         return view('absensi-guru-kelas.report', compact('absensiGuru', 'kelasList'));
     }

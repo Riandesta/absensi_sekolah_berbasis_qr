@@ -294,9 +294,10 @@
                                             <i class="bi bi-qr-code me-1"></i> Scan Guru
                                         </a>
                                     @else
-                                        <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.show', $absensiGuru->id) }}" class="btn btn-sm btn-info">
+                                        {{-- <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.show', $absensiGuru->id) }}" class="btn btn-sm btn-info">
                                             <i class="bi bi-eye me-1"></i> Detail
-                                        </a>
+                                        </a> --}}
+                                         <span class="badge bg-success">Sudah Absen</span>
                                     @endif
                                 </td>
                             </tr>

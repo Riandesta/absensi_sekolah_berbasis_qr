@@ -260,12 +260,12 @@ Route::prefix('karyawan')->middleware(['auth', 'role:karyawan'])->group(function
     Route::post('/jadwal-pelajaran/store', [JadwalPelajaranController::class, 'store'])->name('karyawan.jadwal-pelajaran.store');
     Route::get('/jadwal-pelajaran/edit/{jadwalPelajaran}', [JadwalPelajaranController::class, 'edit'])->name('karyawan.jadwal-pelajaran.edit');
     Route::put('/jadwal-pelajaran/update/{jadwalPelajaran}', [JadwalPelajaranController::class, 'update'])->name('karyawan.jadwal-pelajaran.update');
-    Route::delete('/jadwal-pelajaran/delete/{jadwalPelajaran}', [JadwalPelajaranController::class, 'destroy'])->name('karyawan.jadwal-pelajaran.delete');
+    Route::delete('/jadwal-pelajaran/delete/{jadwalPelajaran}', [JadwalPelajaranController::class, 'destroy'])->name('karyawan.jadwal-pelajaran.destroy');
 
     // Riwayat Absensi (untuk Guru, Wali Kelas dan Kurikulum)
     Route::get('/riwayat-absensi', [AbsensiRiwayatController::class, 'index'])->name('karyawan.riwayat-absensi');
     Route::get('/riwayat-absensi/export-pdf', [AbsensiRiwayatController::class, 'exportPdf'])->name('karyawan.riwayat-absensi.export-pdf');
-    
+
 
     // Laporan Absensi untuk Wali Kelas dan Kurikulum
     Route::get('/laporan-absensi-gerbang', [AbsensiRiwayatController::class, 'laporanAbsensiGerbang'])->name('karyawan.laporan-absensi-gerbang');

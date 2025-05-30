@@ -9,7 +9,7 @@
                         <span>Data Absensi Guru Kelas</span>
                         <div>
                             @if (Auth::user()->role === 'kelas')
-                                <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.scan') }}" class="btn btn-primary btn-sm scan-btn">
+                                <a href="{{ route('kelas.absensi-guru-kelas.scan') }}" class="btn btn-primary btn-sm scan-btn">
                                     <i class="fas fa-qrcode"></i> Scan QR Code
                                 </a>
                             @endif
