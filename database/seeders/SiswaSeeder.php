@@ -22,7 +22,7 @@ class SiswaSeeder extends Seeder
             return;
         }
 
-        for ($i = 1; $i <= 100; $i++) {
+        for ($i = 1; $i <= 20; $i++) {
             $jk = $jenis_kelamin[rand(0, 1)];
 
             $nama_depan = $jk == 'L' ?

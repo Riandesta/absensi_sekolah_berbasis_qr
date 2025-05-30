@@ -100,6 +100,47 @@
     </style>
 @endpush
 @section('content')
+    @php
+        $isGuru = strcasecmp(Auth::user()->karyawan->jabatan, 'guru') === 0;
+        $isWaliKelas =
+            strcasecmp(Auth::user()->karyawan->jabatan, 'walikelas') === 0 && !empty(Auth::user()->karyawan->kelas_id);
+        $isKurikulum = strcasecmp(Auth::user()->karyawan->jabatan, 'kurikulum') === 0;
+
+        $karyawanId = Auth::user()->related_id;
+        $karyawan = Auth::user()->karyawan; // Make sure karyawan is always defined
+        $isPetugasPiketHariIni = App\Models\PetugasPiket::where('karyawan_id', $karyawanId)
+            ->whereDate('tanggal', now()->toDateString())
+            ->exists();
+
+        // Check if the employee has entered gate attendance today
+        $absensiGerbangHariIni = App\Models\AbsensiGerbang::where('related_id', $karyawanId)
+            ->whereDate('tanggal', now()->toDateString())
+            ->first();
+
+        // Map days to Indonesian
+        $hariIni = [
+            'Monday' => 'Senin',
+            'Tuesday' => 'Selasa',
+            'Wednesday' => 'Rabu',
+            'Thursday' => 'Kamis',
+            'Friday' => 'Jumat',
+            'Saturday' => 'Sabtu',
+            'Sunday' => 'Minggu',
+        ];
+        $hari = $hariIni[now()->format('l')];
+
+        // Get schedule for today if teacher
+        if ($isGuru) {
+            $jadwalHariIni = App\Models\Jadwal::whereHas('jadwalPelajaran', function ($q) use ($karyawanId) {
+                $q->where('guru_id', $karyawanId);
+            })
+                ->where('hari', $hari)
+                ->orderBy('jam_mulai')
+                ->get();
+        } else {
+            $jadwalHariIni = collect();
+        }
+    @endphp
 
     <div class="row">
         <div class="col-12">
@@ -136,16 +177,27 @@
                                         <input type="hidden" name="type" value="{{ $type }}">
 
                                         <!-- User Type Filter -->
-                                        <div class="col-md-3">
-                                            <label for="role" class="form-label">Tipe Pengguna</label>
-                                            <select name="role" id="role" class="form-select">
-                                                <option value="">Semua</option>
-                                                <option value="siswa" {{ request('role') == 'siswa' ? 'selected' : '' }}>
-                                                    Siswa</option>
-                                                <option value="karyawan"
-                                                    {{ request('role') == 'karyawan' ? 'selected' : '' }}>Karyawan</option>
-                                            </select>
-                                        </div>
+                                        @if ($isWaliKelas)
+                                            <div class="col-md-3">
+                                                <label for="role" class="form-label">Tipe Pengguna</label>
+                                                <select name="role" id="role" class="form-select" disabled>
+                                                    <option value="siswa" selected>Siswa</option>
+                                                </select>
+                                                <input type="hidden" name="role" value="siswa">
+                                            </div>
+                                        @else
+                                            <div class="col-md-3">
+                                                <label for="role" class="form-label">Tipe Pengguna</label>
+                                                <select name="role" id="role" class="form-select">
+                                                    <option value="">Semua</option>
+                                                    <option value="siswa"
+                                                        {{ request('role') == 'siswa' ? 'selected' : '' }}>Siswa</option>
+                                                    <option value="karyawan"
+                                                        {{ request('role') == 'karyawan' ? 'selected' : '' }}>Karyawan
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        @endif
 
                                         <!-- Period Filter -->
                                         <div class="col-md-3">
@@ -155,7 +207,8 @@
                                                 <option value="all" {{ request('period') == 'all' ? 'selected' : '' }}>
                                                     Semua</option>
                                                 <option value="daily"
-                                                    {{ request('period') == 'daily' ? 'selected' : '' }}>Harian</option>
+                                                    {{ request('period') == 'daily' ? 'selected' : '' }}>
+                                                    Harian</option>
                                                 <option value="weekly"
                                                     {{ request('period') == 'weekly' ? 'selected' : '' }}>Mingguan</option>
                                                 <option value="monthly"

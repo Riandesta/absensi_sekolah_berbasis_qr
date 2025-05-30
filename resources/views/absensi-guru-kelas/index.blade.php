@@ -13,12 +13,12 @@
                                     <i class="fas fa-qrcode"></i> Scan QR Code
                                 </a>
                             @endif
-                            <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.report') }}" class="btn btn-info btn-sm">
+                            {{-- <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.report') }}" class="btn btn-info btn-sm">
                                 <i class="fas fa-file-alt"></i> Laporan
                             </a>
                             <a href="{{ route(Auth::user()->role .'.absensi-guru-kelas.export-pdf', request()->query()) }}" class="btn btn-danger btn-sm">
                                 <i class="fas fa-file-pdf"></i> Export PDF
-                            </a>
+                            </a> --}}
                         </div>
                     </div>
 

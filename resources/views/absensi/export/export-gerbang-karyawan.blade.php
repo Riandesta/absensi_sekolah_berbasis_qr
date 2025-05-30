@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Laporan Absensi Gerbang Kelas</title>
+    <title>Laporan Absensi Gerbang Karyawan</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -118,35 +118,13 @@
 
     <hr style="border: 1px solid #000; margin: 10px 0;">
 
-    <h2 style="text-align: center; margin: 20px 0;">LAPORAN ABSENSI GERBANG SISWA</h2>
+    <h2 style="text-align: center; margin: 20px 0;">LAPORAN ABSENSI GERBANG KARYAWAN</h2>
 
     <div class="periode">
         <table class="data-kelas" border="0">
             <tr>
-                <td width="20%">Kelas</td>
+                <td width="20%">Periode</td>
                 <td width="2%">:</td>
-                <td>{{ $kelas ? $kelas->nama_kelas : 'Semua Kelas' }}</td>
-            </tr>
-            @if ($kelas)
-                <tr>
-                    <td>Tingkat</td>
-                    <td>:</td>
-                    <td>{{ $kelas->tingkat }}</td>
-                </tr>
-                <tr>
-                    <td>Jurusan</td>
-                    <td>:</td>
-                    <td>{{ $kelas->jurusan->nama_jurusan ?? '-' }}</td>
-                </tr>
-                <tr>
-                    <td>Wali Kelas</td>
-                    <td>:</td>
-                    <td>{{ $kelas->waliKelas->nama_lengkap ?? '-' }}</td>
-                </tr>
-            @endif
-            <tr>
-                <td>Periode</td>
-                <td>:</td>
                 <td>
                     @if ($period == 'daily')
                         Harian ({{ $startDate ? $startDate->format('d F Y') : 'Hari Ini' }})
@@ -169,9 +147,9 @@
                 </td>
             </tr>
             <tr>
-                <td>Total Siswa</td>
+                <td>Total Karyawan</td>
                 <td>:</td>
-                <td>{{ $totalSiswa }}</td>
+                <td>{{ $totalKaryawan ?? 0 }}</td>
             </tr>
         </table>
     </div>
@@ -181,8 +159,8 @@
             <tr>
                 <th>No</th>
                 <th>Tanggal</th>
-                <th>Siswa</th>
-                <th>Kelas</th>
+                <th>Nama Karyawan</th>
+                <th>Jabatan</th>
                 <th>Waktu Masuk</th>
                 <th>Waktu Keluar</th>
                 <th>Status</th>
@@ -195,14 +173,14 @@
                     <tr>
                         <td>{{ $no++ }}</td>
                         <td>{{ \Carbon\Carbon::parse($item->tanggal)->format('d-m-Y') }}</td>
-                        <td>{{ $item->siswa->nama_lengkap ?? 'Tidak tersedia' }}</td>
-                        <td>{{ $item->siswa->kelas->nama_kelas ?? 'Tidak tersedia' }}</td>
+                        <td>{{ $item->karyawan?->nama_lengkap ?? 'Tidak tersedia' }}</td>
+                        <td>{{ $item->karyawan?->jabatan ?? 'Tidak tersedia' }}</td>
                         <td>{{ $item->waktu_scan_masuk ?? '-' }}</td>
                         <td>{{ $item->waktu_scan_keluar ?? '-' }}</td>
                         <td>
                             @if ($item->waktu_scan_masuk && $item->waktu_scan_keluar)
                                 <span class="badge bg-success">Lengkap</span>
-                            @elseif($item->waktu_scan_masuk)
+                            @elseif ($item->waktu_scan_masuk)
                                 <span class="badge bg-warning">Belum Absen Keluar</span>
                             @else
                                 <span class="badge bg-danger">Belum Absen</span>
@@ -227,31 +205,33 @@
         </thead>
         <tbody>
             <tr>
-                <td>Total Siswa</td>
-                <td>{{ $totalSiswa }}</td>
+                <td>Total Karyawan</td>
+                <td>{{ $totalKaryawan ?? 0 }}</td>
             </tr>
             <tr>
                 <td>Total Absensi</td>
-                <td>{{ $totalAbsensi }}</td>
+                <td>{{ $totalAbsensi ?? 0 }}</td>
             </tr>
             <tr>
                 <td>Absensi Lengkap</td>
-                <td>{{ $absensiLengkap }}</td>
+                <td>{{ $absensiLengkap ?? 0 }}</td>
             </tr>
             <tr>
                 <td>Belum Absen Keluar</td>
-                <td>{{ $belumAbsenKeluar }}</td>
+                <td>{{ $belumAbsenKeluar ?? 0 }}</td>
             </tr>
             <tr>
-                <td>Presentase Kehadiran</td>
-                <td>
-                    @php
-                        $jumlahAbsensi = min($absensi->count(), $totalSiswa);
-                        $persentase = $totalSiswa > 0 ? round(($jumlahAbsensi / $totalSiswa) * 100, 2) : 0;
-                    @endphp
-                    {{ $persentase }}%
-                </td>
-            </tr>
+    <td>Persentase Kehadiran</td>
+    <td>
+        @php
+            $jumlahAbsensi = $absensi->whereNotNull('karyawan_id')->unique('related_id')->count();
+            $persentase = ($totalKaryawan ?? 0) > 0 
+                ? round(($jumlahAbsensi / $totalKaryawan) * 100, 2) 
+                : 0;
+        @endphp
+        {{ $persentase }}%
+    </td>
+</tr>
         </tbody>
     </table>
 
@@ -264,16 +244,9 @@
                 NIP. -
             </td>
             <td width="50%">
-                Bandung, {{ now()->format('d F Y') }}<br>
-                @if ($kelas && $kelas->waliKelas)
-                    Wali Kelas<br><br><br><br>
-                    <u><strong>{{ $kelas->waliKelas->nama_lengkap }}</strong></u><br>
-                    NIP. {{ $kelas->waliKelas->nip }}
-                @else
-                    Kurikulum<br><br><br><br>
-                    <u><strong>_______________________</strong></u><br>
-                    NIP. -
-                @endif
+                Bandung, {{ now()->format('d F Y') }}<br><br><br><br>
+                <u><strong>_______________________</strong></u><br>
+                NIP. -
             </td>
         </tr>
     </table>
