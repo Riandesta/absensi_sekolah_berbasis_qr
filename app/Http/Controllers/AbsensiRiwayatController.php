@@ -96,7 +96,110 @@ class AbsensiRiwayatController extends Controller
     }
 
 
-  public function laporanAbsensiGerbang(Request $request)
+//   public function laporanAbsensiGerbang(Request $request)
+// {
+//     $user = Auth::user();
+//     $type = 'gerbang'; // Force type to be gerbang
+//     $period = $request->input('period', 'all');
+//     $customStart = $request->input('start_date');
+//     $customEnd = $request->input('end_date');
+//     $kelasId = $request->input('kelas_id');
+//     $userType = $request->input('role'); // Get user type filter
+
+//     // Set date range based on selected period
+//     [$startDate, $endDate] = $this->getDateRange($period, $customStart, $customEnd);
+
+//     // Get the current employee (karyawan)
+//     $karyawan = Karyawan::find($user->related_id);
+
+//     if (!$karyawan) {
+//         return redirect()->route('karyawan.dashboard')->with('error', 'Data karyawan tidak ditemukan.');
+//     }
+
+//     $jabatan = strtolower($karyawan->jabatan ?? '');
+
+//     if ($jabatan === 'walikelas' && !empty($karyawan->kelas_id)) {
+//         $kelasId = $karyawan->kelas_id;
+//         $kelas = Kelas::find($kelasId);
+
+//         if (!$kelas) {
+//             return redirect()->route('karyawan.dashboard')->with('error', 'Data kelas tidak ditemukan.');
+//         }
+
+//         $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+
+//         $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+
+//         // PERBAIKAN UTAMA: Gunakan user_type untuk filter
+//         if ($userType) {
+//             $query->where('user_type', $userType);
+
+//             if ($userType === 'siswa') {
+//                 $query->whereIn('related_id', $siswaIds);
+//             }
+//         } else {
+//             // Jika tidak ada filter, tampilkan semua (siswa dan karyawan) tapi prioritas siswa dari kelas ini
+//             $query->where(function($q) use ($siswaIds) {
+//                 $q->where(function($subQ) use ($siswaIds) {
+//                     $subQ->where('user_type', 'siswa')
+//                          ->whereIn('related_id', $siswaIds);
+//                 })->orWhere('user_type', 'karyawan');
+//             });
+//         }
+
+//         if ($startDate && $endDate) {
+//             $query->whereBetween('tanggal', [$startDate, $endDate]);
+//         }
+
+//         $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+//         return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas', 'userType'));
+//     }
+
+//     // Default if the user is "kurikulum"
+//     if ($jabatan === 'kurikulum') {
+//         // Get all available classes for filtering
+//         $kelasList = Kelas::all();
+
+//         // Filter by class if specified
+//         $kelas = null;
+//         if ($kelasId) {
+//             $kelas = Kelas::find($kelasId);
+//         }
+
+//         $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+
+//         // PERBAIKAN UTAMA: Gunakan user_type untuk filter
+//         if ($userType) {
+//             $query->where('user_type', $userType);
+
+//             if ($userType === 'siswa' && $kelasId) {
+//                 $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+//                 $query->whereIn('related_id', $siswaIds);
+//             }
+//         } else {
+//             // Jika ada filter kelas tapi tidak ada filter user type, tampilkan siswa
+//             if ($kelasId) {
+//                 $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
+//                 $query->where('user_type', 'siswa')
+//                       ->whereIn('related_id', $siswaIds);
+//             }
+//             // Jika tidak ada filter apapun, tampilkan semua
+//         }
+
+//         if ($startDate && $endDate) {
+//             $query->whereBetween('tanggal', [$startDate, $endDate]);
+//         }
+
+//         $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+
+//         return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas', 'userType'));
+//     }
+
+//     return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');
+// }
+
+public function laporanAbsensiGerbang(Request $request)
 {
     $user = Auth::user();
     $type = 'gerbang'; // Force type to be gerbang
@@ -128,7 +231,7 @@ class AbsensiRiwayatController extends Controller
 
         $siswaIds = Siswa::where('kelas_id', $kelasId)->pluck('id')->toArray();
 
-        $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+        $query = AbsensiGerbang::with(['siswa.kelas', 'karyawan']);
 
         // PERBAIKAN UTAMA: Gunakan user_type untuk filter
         if ($userType) {
@@ -151,9 +254,21 @@ class AbsensiRiwayatController extends Controller
             $query->whereBetween('tanggal', [$startDate, $endDate]);
         }
 
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+        // Ensure proper ordering and pagination
+        $absensi = $query->orderBy('tanggal', 'desc')
+                        ->orderBy('waktu_scan_masuk', 'desc')
+                        ->paginate(10);
 
-        return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelas', 'userType'));
+        // Preserve query parameters for pagination
+        $absensi->appends($request->all());
+
+        // Pass role for template
+        $role = $userType;
+
+        return view('karyawan.laporan-absensi-gerbang', compact(
+            'absensi', 'type', 'period', 'customStart', 'customEnd',
+            'kelas', 'role', 'userType'
+        ));
     }
 
     // Default if the user is "kurikulum"
@@ -167,7 +282,7 @@ class AbsensiRiwayatController extends Controller
             $kelas = Kelas::find($kelasId);
         }
 
-        $query = AbsensiGerbang::with(['siswa', 'karyawan']);
+        $query = AbsensiGerbang::with(['siswa.kelas', 'karyawan']);
 
         // PERBAIKAN UTAMA: Gunakan user_type untuk filter
         if ($userType) {
@@ -191,9 +306,21 @@ class AbsensiRiwayatController extends Controller
             $query->whereBetween('tanggal', [$startDate, $endDate]);
         }
 
-        $absensi = $query->orderBy('tanggal', 'desc')->paginate(10);
+        // Ensure proper ordering and pagination
+        $absensi = $query->orderBy('tanggal', 'desc')
+                        ->orderBy('waktu_scan_masuk', 'desc')
+                        ->paginate(10);
 
-        return view('karyawan.laporan-absensi-gerbang', compact('absensi', 'type', 'period', 'customStart', 'customEnd', 'kelasList', 'kelas', 'userType'));
+        // Preserve query parameters for pagination
+        $absensi->appends($request->all());
+
+        // Pass role for template
+        $role = $userType;
+
+        return view('karyawan.laporan-absensi-gerbang', compact(
+            'absensi', 'type', 'period', 'customStart', 'customEnd',
+            'kelasList', 'kelas', 'role', 'userType'
+        ));
     }
 
     return redirect()->route('karyawan.dashboard')->with('error', 'Anda tidak memiliki akses ke halaman ini.');

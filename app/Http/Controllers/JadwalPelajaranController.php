@@ -120,6 +120,6 @@ class JadwalPelajaranController extends Controller
     public function destroy(JadwalPelajaran $jadwalPelajaran)
     {
         $jadwalPelajaran->delete();
-        return redirect()->route('jadwal-pelajaran.index')->with('success', 'Jadwal pelajaran berhasil dihapus.');
+        return redirect()->route(Auth::user()->role . '.jadwal-pelajaran.index')->with('success', 'Jadwal pelajaran berhasil dihapus.');
     }
 }
